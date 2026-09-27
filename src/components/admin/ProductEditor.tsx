@@ -23,6 +23,8 @@ export function ProductEditor({ initial, categories }: { initial: Initial; categ
     setUploading(true); setError('');
     const added: Img[] = [];
     for (const f of Array.from(files)) {
+      // Checked here too: hosts like Vercel reject large request bodies before the server sees them.
+      if (f.size > 4 * 1024 * 1024) { setError(`${f.name} is larger than 4 MB. Please resize it.`); break; }
       const fd = new FormData(); fd.set('file', f);
       const r = await uploadImage(fd);
       if (r.error) { setError(r.error); break; }
@@ -81,7 +83,7 @@ export function ProductEditor({ initial, categories }: { initial: Initial; categ
               <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only" onChange={(e) => onUpload(e.target.files)} />
             </label>
           </div>
-          <p className="mt-2 text-xs text-muted">JPG, PNG or WebP, up to 5 MB each. Portrait 4:5 photos (e.g. 1200 × 1500) look best. The first photo is the main one.</p>
+          <p className="mt-2 text-xs text-muted">JPG, PNG or WebP, up to 4 MB each. Portrait 4:5 photos (e.g. 1200 × 1500) look best. The first photo is the main one.</p>
         </section>
 
         <section className="admin-card">

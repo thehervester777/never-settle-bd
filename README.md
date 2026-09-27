@@ -92,6 +92,16 @@ Open `https://www.yourdomain.com/admin`. The first time, it asks you to **create
 
 ---
 
+## Put it live on Vercel
+
+1. **Database:** Vercel has no MySQL, so use one that accepts connections from the internet (e.g. Aiven, TiDB Cloud, Railway, or your cPanel MySQL with **Remote MySQL** allowing `%`). Import `database/install.sql` into it (plus `database/sample-data.sql` for demo products).
+2. **Import the repo** in Vercel (framework: Next.js; default build settings). `server.js` isn't used there.
+3. **Environment variables** (Settings → Environment Variables): `DATABASE_URL`, `AUTH_SECRET`, `NEXT_PUBLIC_SITE_URL` (e.g. `https://your-project.vercel.app`) and optionally the `SMTP_*` ones.
+4. **Photo storage:** Storage → **Create** → **Blob** → connect it to the project. This adds `BLOB_READ_WRITE_TOKEN`, and admin photo uploads go there instead of the disk.
+5. **Redeploy**, then open `/admin` to create your admin account.
+
+If most pages show "Application error: a server-side exception has occurred", the site can't reach the database: check `DATABASE_URL` and that the database allows remote connections. The deployment's **Logs** tab shows the exact error.
+
 ## Payments
 
 The store takes **cash on delivery** only. Mark an order *Paid* in **Admin → Orders** once the courier hands over the cash. To pause ordering, untick cash on delivery in **Admin → Settings**.
@@ -103,7 +113,7 @@ The store takes **cash on delivery** only. Mark an order *Paid* in **Admin → O
 - **New orders:** Admin → Dashboard shows orders *waiting for confirmation*.
 - **Order status:** Pending → Confirmed → Processing → Shipped → Delivered. Choosing **Cancelled** or **Returned** puts the stock back automatically.
 - **Cash on delivery:** mark the order **Paid** when the courier settles.
-- **Products:** upload photos (JPG, PNG or WebP, up to 5 MB), set price, "compare at" price (shows a sale badge), sizes, colours and stock per size/colour. Untick **Visible in store** to hide a product without deleting it.
+- **Products:** upload photos (JPG, PNG or WebP, up to 4 MB), set price, "compare at" price (shows a sale badge), sizes, colours and stock per size/colour. Untick **Visible in store** to hide a product without deleting it.
 - **Customers** can find their order at `/track` with their order number and phone number.
 
 ### Changing site photos and text

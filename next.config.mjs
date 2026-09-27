@@ -7,8 +7,8 @@ const nextConfig = {
   },
   poweredByHeader: false,
   experimental: {
-    // Product photo uploads from the admin panel (up to 5 MB each).
-    serverActions: { bodySizeLimit: '6mb' },
+    // Product photo uploads from the admin panel (up to 4 MB each).
+    serverActions: { bodySizeLimit: '5mb' },
   },
   async headers() {
     return [

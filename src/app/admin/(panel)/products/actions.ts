@@ -1,8 +1,6 @@
 'use server';
 
 import { randomBytes } from 'crypto';
-import { mkdir, writeFile } from 'fs/promises';
-import path from 'path';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { and, eq, ne, notInArray } from 'drizzle-orm';
@@ -10,7 +8,7 @@ import { z } from 'zod';
 import { db, schema } from '@/db';
 import { requireAdmin } from '@/lib/auth';
 import { toPoisha } from '@/lib/money';
-import { uploadDir } from '@/lib/uploads';
+import { MAX_UPLOAD_BYTES, storeUpload } from '@/lib/uploads';
 
 
 const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 200) || 'product';
@@ -38,7 +36,7 @@ const productSchema = z.object({
 
 export type ProductFormState = { error?: string } | undefined;
 
-/** Accepts JPEG, PNG or WebP up to 5 MB; returns the public URL. */
+/** Accepts JPEG, PNG or WebP up to 4 MB; returns the public URL. */
 export async function uploadImage(formData: FormData): Promise<{ url?: string; error?: string }> {
   await requireAdmin();
   const file = formData.get('file');
@@ -46,7 +44,7 @@ export async function uploadImage(formData: FormData): Promise<{ url?: string; e
   const types: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
   const ext = types[file.type];
   if (!ext) return { error: 'Use a JPG, PNG or WebP image.' };
-  if (file.size > 5 * 1024 * 1024) return { error: 'Images must be 5 MB or smaller.' };
+  if (file.size > MAX_UPLOAD_BYTES) return { error: 'Images must be 4 MB or smaller.' };
   const buf = Buffer.from(await file.arrayBuffer());
   // Check the file really is an image (magic bytes), not just named like one.
   const sig = buf.subarray(0, 12);
@@ -54,11 +52,16 @@ export async function uploadImage(formData: FormData): Promise<{ url?: string; e
   const isPng = sig.toString('hex', 0, 8) === '89504e470d0a1a0a';
   const isWebp = sig.toString('ascii', 0, 4) === 'RIFF' && sig.toString('ascii', 8, 12) === 'WEBP';
   if (!(isJpg || isPng || isWebp)) return { error: 'That file is not a valid image.' };
-  const dir = uploadDir();
-  await mkdir(dir, { recursive: true });
+  if (process.env.VERCEL && !process.env.BLOB_READ_WRITE_TOKEN) {
+    return { error: 'Photo storage is not set up. In Vercel, go to Storage, create a Blob store, connect it to this project and redeploy.' };
+  }
   const name = `${Date.now().toString(36)}-${randomBytes(6).toString('hex')}.${ext}`;
-  await writeFile(path.join(dir, name), buf);
-  return { url: `/uploads/${name}` };
+  try {
+    return { url: await storeUpload(name, buf, file.type) };
+  } catch (e) {
+    console.error('Image upload failed', e);
+    return { error: 'Could not save the image. Please try again.' };
+  }
 }
 
 export async function saveProduct(id: number | null, payload: unknown): Promise<ProductFormState> {
