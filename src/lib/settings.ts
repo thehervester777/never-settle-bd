@@ -9,7 +9,6 @@ export type StoreSettings = {
   shippingOutsideDhaka: number;
   freeShippingThreshold: number; // 0 = off
   codEnabled: boolean;
-  sslcommerzEnabled: boolean;
   announcement: string; // "|" separated messages
   phone: string;
   email: string;
@@ -26,7 +25,6 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   shippingOutsideDhaka: 13000,
   freeShippingThreshold: 300000,
   codEnabled: true,
-  sslcommerzEnabled: true,
   announcement: 'Free delivery on orders over ৳3,000|7-day easy exchange on all orders|Cash on delivery across Bangladesh',
   phone: '+880 1XXX-XXXXXX',
   email: 'hello@yourdomain.com',
@@ -35,7 +33,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   instagram: '',
   facebook: '',
   tiktok: '',
-  paymentLabels: 'Cash on delivery, bKash, Nagad, Visa, Mastercard',
+  paymentLabels: 'Cash on delivery',
 };
 
 export const getSettings = cache(async (): Promise<StoreSettings> => {

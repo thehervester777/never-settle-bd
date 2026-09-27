@@ -19,9 +19,9 @@ const STATUS_TEXT: Record<string, string> = {
   RETURNED: 'Returned',
 };
 
-export default async function OrderPage({ params, searchParams }: { params: Promise<{ number: string }>; searchParams: Promise<{ t?: string; paid?: string }> }) {
+export default async function OrderPage({ params, searchParams }: { params: Promise<{ number: string }>; searchParams: Promise<{ t?: string }> }) {
   const { number } = await params;
-  const { t, paid } = await searchParams;
+  const { t } = await searchParams;
   if (!verifyOrderToken(number, t)) notFound();
   const order = await getOrderByNumber(number);
   if (!order) notFound();
@@ -29,17 +29,12 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
 
   return (
     <section className="container max-w-4xl pb-24 pt-12 md:pt-16">
-      {(order.paymentMethod === 'COD' || isPaid) && <ClearCartOnMount />}
+      <ClearCartOnMount />
       <p className="eyebrow mb-4 inline-flex items-center gap-2 text-muted"><Icon name="check" className="h-4 w-4 text-ink" /> Order {order.number}</p>
-      <SplitText as="h1" text={isPaid ? 'Payment received.\nThank you!' : 'Order placed.\nThank you!'} className="font-display text-display-lg uppercase" onMount />
+      <SplitText as="h1" text={'Order placed.\nThank you!'} className="font-display text-display-lg uppercase" onMount />
       <p className="mt-6 max-w-xl text-muted">
-        {order.paymentMethod === 'COD'
-          ? `We'll call ${order.phone} to confirm before we dispatch. Keep ${formatBDT(order.total)} ready for the courier.`
-          : isPaid
-            ? `Your payment of ${formatBDT(order.total)} was successful. We'll text ${order.phone} when your order ships.`
-            : 'We are waiting for confirmation from the payment gateway. This page will show "paid" once it arrives.'}
+        We&apos;ll call {order.phone} to confirm before we dispatch. Keep {formatBDT(order.total)} ready for the courier.
       </p>
-      {paid && isPaid && <p className="mt-4 inline-block bg-accent px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em]">Paid online</p>}
 
       <div className="mt-12 grid gap-10 md:grid-cols-5">
         <div className="md:col-span-3">
@@ -66,7 +61,7 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
           <div className="bg-bone p-5">
             <h2 className="eyebrow mb-2">Status</h2>
             <p className="font-semibold">{STATUS_TEXT[order.status]}</p>
-            <p className="mt-1 text-muted">Payment: {order.paymentMethod === 'COD' ? 'Cash on delivery' : 'Online (SSLCOMMERZ)'} · {isPaid ? 'Paid' : 'Unpaid'}</p>
+            <p className="mt-1 text-muted">Payment: Cash on delivery · {isPaid ? 'Paid' : 'Unpaid'}</p>
           </div>
           <div className="bg-bone p-5">
             <h2 className="eyebrow mb-2">Delivering to</h2>

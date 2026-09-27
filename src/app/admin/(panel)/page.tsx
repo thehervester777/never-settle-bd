@@ -2,13 +2,11 @@ import Link from 'next/link';
 import { and, count, desc, eq, gte, lte, ne, or, sql, sum } from 'drizzle-orm';
 import { db, schema } from '@/db';
 import { formatBDT } from '@/lib/money';
-import { releaseStaleOrders } from '@/lib/orders';
 import { StatusBadge } from '@/components/admin/StatusBadge';
 
 export const metadata = { title: 'Dashboard' };
 
 export default async function Dashboard() {
-  await releaseStaleOrders().catch(() => 0);
   const { orders, variants, products, messages } = schema;
   const since = new Date(Date.now() - 30 * 24 * 3600 * 1000);
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -55,7 +53,7 @@ export default async function Dashboard() {
                     <td className="whitespace-nowrap"><Link className="font-medium underline" href={`/admin/orders/${o.id}`}>{o.number}</Link><p className="text-xs text-muted">{o.createdAt.toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' })}</p></td>
                     <td>{o.customerName}<p className="text-xs text-muted">{o.phone}</p></td>
                     <td><StatusBadge status={o.status} /></td>
-                    <td className="text-xs">{o.paymentMethod === 'COD' ? 'COD' : 'Online'} · <StatusBadge status={o.paymentStatus} /></td>
+                    <td className="text-xs">COD · <StatusBadge status={o.paymentStatus} /></td>
                     <td className="text-right tabular-nums">{formatBDT(o.total)}</td>
                   </tr>
                 ))}

@@ -8,17 +8,14 @@ import { Icon } from '@/components/ui/Icon';
 import { formatBDT } from '@/lib/money';
 
 type Props = {
-  notice: string | null;
   shipping: { inside: number; outside: number; freeOver: number };
-  methods: { cod: boolean; online: boolean };
-  testMode: boolean;
+  codEnabled: boolean;
 };
 
-export function CheckoutForm({ notice, shipping, methods, testMode }: Props) {
+export function CheckoutForm({ shipping, codEnabled }: Props) {
   const router = useRouter();
   const { lines, subtotal, ready, clear } = useCart();
   const [zone, setZone] = useState<'inside_dhaka' | 'outside_dhaka'>('inside_dhaka');
-  const [payment, setPayment] = useState<'COD' | 'SSLCOMMERZ'>(methods.cod ? 'COD' : 'SSLCOMMERZ');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -36,7 +33,7 @@ export function CheckoutForm({ notice, shipping, methods, testMode }: Props) {
     const res = await fetch('/api/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...f, zone, paymentMethod: payment, items: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })) }),
+      body: JSON.stringify({ ...f, zone, paymentMethod: 'COD', items: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })) }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -46,20 +43,14 @@ export function CheckoutForm({ notice, shipping, methods, testMode }: Props) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
-    if (payment === 'COD') {
-      clear();
-      router.push(data.redirect);
-    } else {
-      // Keep the cart until payment succeeds; the success page clears it.
-      window.location.href = data.redirect;
-    }
+    clear();
+    router.push(data.redirect);
   }
 
   if (!ready) return <div className="container py-24" />;
   if (!lines.length) {
     return (
       <div className="container py-24 text-center">
-        {notice && <p className="mx-auto mb-8 max-w-xl bg-sale/10 p-4 text-sm text-sale">{notice}</p>}
         <h1 className="font-display text-display-md uppercase">Your cart is empty</h1>
         <Link href="/collections/all" className="btn btn-primary mt-8">Continue shopping</Link>
       </div>
@@ -77,7 +68,6 @@ export function CheckoutForm({ notice, shipping, methods, testMode }: Props) {
   return (
     <div className="container pb-24 pt-10 md:pt-14">
       <h1 className="font-display text-display-md uppercase">Checkout</h1>
-      {notice && <p className="mt-6 max-w-2xl bg-sale/10 p-4 text-sm text-sale" role="alert">{notice}</p>}
       {formError && <p className="mt-6 max-w-2xl bg-sale/10 p-4 text-sm text-sale" role="alert">{formError}</p>}
 
       <form onSubmit={onSubmit} className="mt-10 grid gap-12 lg:grid-cols-12" noValidate>
@@ -119,15 +109,14 @@ export function CheckoutForm({ notice, shipping, methods, testMode }: Props) {
           <section>
             <h2 className="eyebrow mb-5">3. Payment</h2>
             {errors.paymentMethod && <p className="mb-3 text-sm text-sale">{errors.paymentMethod}</p>}
-            <div className="grid gap-3">
-              {methods.cod && (
-                <PayOption checked={payment === 'COD'} onSelect={() => setPayment('COD')} title="Cash on delivery" text="Pay the courier in cash when your order arrives." />
-              )}
-              {methods.online && (
-                <PayOption checked={payment === 'SSLCOMMERZ'} onSelect={() => setPayment('SSLCOMMERZ')} title="Pay online: card, bKash, Nagad or internet banking" text={`You'll pay securely on SSLCOMMERZ's payment page, then return here.${testMode ? ' (Test mode: no real money is taken.)' : ''}`} />
-              )}
-              {!methods.cod && !methods.online && <p className="text-sm text-sale">No payment method is available right now. Please contact us to order.</p>}
-            </div>
+            {codEnabled ? (
+              <div className="flex items-start gap-3 border border-ink bg-bone/60 p-4">
+                <Icon name="check" className="mt-0.5 h-4 w-4" />
+                <span><span className="block text-sm font-semibold">Cash on delivery</span><span className="mt-1 block text-xs text-muted">Pay the courier in cash when your order arrives.</span></span>
+              </div>
+            ) : (
+              <p className="text-sm text-sale">Ordering is paused right now. Please contact us to order.</p>
+            )}
           </section>
         </div>
 
@@ -152,22 +141,13 @@ export function CheckoutForm({ notice, shipping, methods, testMode }: Props) {
               <div className="flex justify-between"><dt>Delivery</dt><dd>{fee === 0 ? 'Free' : formatBDT(fee)}</dd></div>
               <div className="flex justify-between border-t border-ink pt-3 text-base font-semibold"><dt>Total</dt><dd>{formatBDT(total)}</dd></div>
             </dl>
-            <button className="btn btn-primary mt-6 w-full py-5" disabled={submitting || (!methods.cod && !methods.online)}>
-              {submitting ? 'Placing order…' : payment === 'COD' ? 'Place order' : `Pay ${formatBDT(total)}`} {!submitting && <Icon name="arrow-right" className="h-4 w-4" />}
+            <button className="btn btn-primary mt-6 w-full py-5" disabled={submitting || !codEnabled}>
+              {submitting ? 'Placing order…' : 'Place order'} {!submitting && <Icon name="arrow-right" className="h-4 w-4" />}
             </button>
             <p className="mt-3 text-center text-xs text-muted">Final prices and stock are confirmed when you place the order.</p>
           </div>
         </aside>
       </form>
     </div>
-  );
-}
-
-function PayOption({ checked, onSelect, title, text }: { checked: boolean; onSelect: () => void; title: string; text: string }) {
-  return (
-    <label className={`flex cursor-pointer items-start gap-3 border p-4 transition-colors ${checked ? 'border-ink bg-bone/60' : 'border-ink/15 hover:border-ink/40'}`}>
-      <input type="radio" className="radio mt-0.5" name="payChoice" checked={checked} onChange={onSelect} />
-      <span><span className="block text-sm font-semibold">{title}</span><span className="mt-1 block text-xs text-muted">{text}</span></span>
-    </label>
   );
 }

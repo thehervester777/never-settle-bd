@@ -21,9 +21,8 @@ async function updateOrder(formData: FormData) {
   const [o] = await db.select().from(schema.orders).where(eq(schema.orders.id, id));
   if (!o) return;
   const update: Partial<typeof schema.orders.$inferInsert> = { status };
-  // Admins can mark cash-on-delivery orders paid/refunded; online payments are set by the gateway.
-  if (o.paymentMethod === 'COD' && ['UNPAID', 'PAID', 'REFUNDED'].includes(paymentStatus)) update.paymentStatus = paymentStatus as 'UNPAID' | 'PAID' | 'REFUNDED';
-  if (o.paymentMethod === 'SSLCOMMERZ' && paymentStatus === 'REFUNDED' && o.paymentStatus === 'PAID') update.paymentStatus = 'REFUNDED';
+  // Cash on delivery: the admin marks the order paid when the courier hands over the cash.
+  if (['UNPAID', 'PAID', 'REFUNDED'].includes(paymentStatus)) update.paymentStatus = paymentStatus as 'UNPAID' | 'PAID' | 'REFUNDED';
   await db.update(schema.orders).set(update).where(eq(schema.orders.id, id));
   if (status === 'CANCELLED' || status === 'RETURNED') await releaseStock(id);
   revalidatePath(`/admin/orders/${id}`);
@@ -75,19 +74,6 @@ export default async function OrderDetail({ params, searchParams }: { params: Pr
             </dl>
           </section>
 
-          {order.payments.length > 0 && (
-            <section className="admin-card">
-              <h2 className="mb-3 font-semibold">Online payment attempts</h2>
-              <div className="overflow-x-auto"><table className="admin-table">
-                <thead><tr><th>Transaction</th><th>Status</th><th>Method</th><th>Bank ref.</th><th className="text-right">Amount</th></tr></thead>
-                <tbody>
-                  {order.payments.map((p) => (
-                    <tr key={p.id}><td className="font-mono text-xs">{p.tranId}</td><td><StatusBadge status={p.status} /></td><td className="text-xs">{p.cardType ?? '—'}</td><td className="font-mono text-xs">{p.bankTranId ?? '—'}</td><td className="text-right tabular-nums">{formatBDT(p.amount)}</td></tr>
-                  ))}
-                </tbody>
-              </table></div>
-            </section>
-          )}
         </div>
 
         <div className="space-y-6">
@@ -105,9 +91,8 @@ export default async function OrderDetail({ params, searchParams }: { params: Pr
               <div>
                 <label htmlFor="paymentStatus" className="label">Payment</label>
                 <select id="paymentStatus" name="paymentStatus" defaultValue={order.paymentStatus} className="field-select bg-white">
-                  {(order.paymentMethod === 'COD' ? ['UNPAID', 'PAID', 'REFUNDED'] : [order.paymentStatus, ...(order.paymentStatus === 'PAID' ? ['REFUNDED'] : [])]).map((s) => <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>)}
+                  {['UNPAID', 'PAID', 'REFUNDED'].map((s) => <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>)}
                 </select>
-                {order.paymentMethod === 'SSLCOMMERZ' && <p className="mt-1 text-xs text-muted">Online payments are confirmed by SSLCOMMERZ. Issue refunds from your SSLCOMMERZ merchant panel, then mark refunded here.</p>}
               </div>
               <button className="btn btn-primary w-full">Save</button>
             </form>
@@ -121,7 +106,7 @@ export default async function OrderDetail({ params, searchParams }: { params: Pr
             <p>{order.address}<br />{[order.area, order.city].filter(Boolean).join(', ')}<br />{order.zone === 'inside_dhaka' ? 'Inside Dhaka' : 'Outside Dhaka'}</p>
             {order.note && <><h3 className="mb-1 mt-4 text-xs font-semibold uppercase tracking-[0.14em] text-muted">Note</h3><p>{order.note}</p></>}
             <h3 className="mb-1 mt-4 text-xs font-semibold uppercase tracking-[0.14em] text-muted">Payment method</h3>
-            <p>{order.paymentMethod === 'COD' ? 'Cash on delivery' : 'Online (SSLCOMMERZ)'}</p>
+            <p>Cash on delivery</p>
           </section>
         </div>
       </div>

@@ -12,8 +12,7 @@ export default async function FaqPage() {
   const faqs = [
     { q: 'How long does delivery take?', a: 'Inside Dhaka: 1–2 working days. Outside Dhaka: 2–4 working days. We call to confirm your order before dispatch.' },
     { q: 'How much is delivery?', a: `Inside Dhaka ${formatBDT(s.shippingInsideDhaka)}, outside Dhaka ${formatBDT(s.shippingOutsideDhaka)}.${s.freeShippingThreshold ? ` Free on orders over ${formatBDT(s.freeShippingThreshold)}.` : ''}` },
-    { q: 'Can I pay cash on delivery?', a: 'Yes. Cash on delivery is available across Bangladesh. You can also pay online by card, bKash, Nagad or internet banking through SSLCOMMERZ.' },
-    { q: 'Is online payment safe?', a: "Yes. You pay on SSLCOMMERZ's secure payment page; we never see or store your card or wallet details." },
+    { q: 'Can I pay cash on delivery?', a: 'Yes. Cash on delivery is available across Bangladesh. Pay the courier in cash when your order arrives.' },
     { q: 'How do exchanges work?', a: 'Exchange any item within 7 days of delivery if it is unworn, unwashed and has its tags attached. Contact us with your order number and we will arrange it.' },
     { q: 'How do I find my size?', a: 'Use our size guide. T-shirts, punjabis and kurtas run true to size, pants use waist sizes, and shoes use EU sizes.' },
     { q: 'Can I change or cancel my order?', a: 'Yes, as long as it has not been handed to the courier. Contact us as soon as possible with your order number.' },

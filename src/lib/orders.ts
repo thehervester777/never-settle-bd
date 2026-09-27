@@ -5,7 +5,7 @@ import { db, schema } from '@/db';
 import { getSettings, shippingFor } from './settings';
 import type { CheckoutInput } from './validation';
 
-const { orders, orderItems, variants, products, productImages, payments } = schema;
+const { orders, orderItems, variants, products, productImages } = schema;
 
 export class CheckoutError extends Error {
   constructor(message: string, public field?: string) { super(message); }
@@ -25,7 +25,6 @@ export const verifyOrderToken = (number: string, token: string | null | undefine
 export async function createOrder(input: CheckoutInput) {
   const settings = await getSettings();
   if (input.paymentMethod === 'COD' && !settings.codEnabled) throw new CheckoutError('Cash on delivery is not available right now.', 'paymentMethod');
-  if (input.paymentMethod === 'SSLCOMMERZ' && !settings.sslcommerzEnabled) throw new CheckoutError('Online payment is not available right now.', 'paymentMethod');
 
   // Merge duplicate lines for the same variant.
   const qty = new Map<number, number>();
@@ -111,37 +110,16 @@ export async function releaseStock(orderId: number) {
   });
 }
 
-/** Online-payment orders that were never paid within 60 minutes are cancelled and their stock released. */
-export async function releaseStaleOrders() {
-  const cutoff = new Date(Date.now() - 60 * 60 * 1000);
-  const stale = await db
-    .select({ id: orders.id })
-    .from(orders)
-    .where(and(eq(orders.paymentMethod, 'SSLCOMMERZ'), eq(orders.paymentStatus, 'UNPAID'), eq(orders.status, 'PENDING'), lt(orders.createdAt, cutoff)));
-  for (const s of stale) {
-    await db.update(orders).set({ status: 'CANCELLED' }).where(eq(orders.id, s.id));
-    await releaseStock(s.id);
-  }
-  return stale.length;
-}
-
 /**
- * Loads an order with its items and payments. Uses plain queries (no LATERAL joins)
+ * Loads an order with its items. Uses plain queries (no LATERAL joins)
  * so it works on both MySQL 8 and MariaDB, which most cPanel hosts run.
  */
 async function loadOrder(where: ReturnType<typeof eq>) {
   const [o] = await db.select().from(orders).where(where).limit(1);
   if (!o) return null;
-  const [items, pays] = await Promise.all([
-    db.select().from(orderItems).where(eq(orderItems.orderId, o.id)).orderBy(orderItems.id),
-    db.select().from(payments).where(eq(payments.orderId, o.id)).orderBy(payments.id),
-  ]);
-  return { ...o, items, payments: pays };
+  const items = await db.select().from(orderItems).where(eq(orderItems.orderId, o.id)).orderBy(orderItems.id);
+  return { ...o, items };
 }
 
 export const getOrderByNumber = (number: string) => loadOrder(eq(orders.number, number));
 export const getOrderById = (id: number) => loadOrder(eq(orders.id, id));
-
-export async function recordPayment(values: typeof payments.$inferInsert) {
-  await db.insert(payments).values(values);
-}

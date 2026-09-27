@@ -13,7 +13,7 @@ const POLICIES: Record<string, Policy> = {
       <h2>How to request an exchange</h2>
       <ol><li>Contact us at ${s.phone} or ${s.email} with your order number.</li><li>We arrange a pickup or tell you where to send the item.</li><li>Once we receive and check it, we send the new size or item.</li></ol>
       <h2>Refunds</h2>
-      <p>If an item arrives damaged or wrong, we replace it or refund you in full, including delivery. Online payments are refunded to the original payment method; cash on delivery orders are refunded by bKash, Nagad or bank transfer.</p>
+      <p>If an item arrives damaged or wrong, we replace it or refund you in full, including delivery. Refunds are sent by bKash, Nagad or bank transfer.</p>
       <h2>Not eligible</h2>
       <p>Items marked final sale, and items that have been worn, washed or altered.</p>`,
   },
@@ -28,7 +28,6 @@ const POLICIES: Record<string, Policy> = {
     title: 'Privacy policy',
     body: (s) => `
       <p>We collect only what we need to deliver your order: your name, phone number, delivery address and, if you give it, your email.</p>
-      <p>Online payments are processed by SSLCOMMERZ. We never see or store your card or mobile wallet details.</p>
       <p>We share your delivery details only with our courier partner for that order. We do not sell your data.</p>
       <p>To see or delete the information we hold about you, contact ${s.email}.</p>`,
   },

@@ -53,7 +53,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
                 <td>{o.customerName}<p className="text-xs text-muted">{o.phone}</p></td>
                 <td className="text-xs">{o.city}<p className="text-muted">{o.zone === 'inside_dhaka' ? 'Inside Dhaka' : 'Outside Dhaka'}</p></td>
                 <td><StatusBadge status={o.status} /></td>
-                <td className="text-xs">{o.paymentMethod === 'COD' ? 'COD' : 'Online'}<br /><StatusBadge status={o.paymentStatus} /></td>
+                <td className="text-xs">COD<br /><StatusBadge status={o.paymentStatus} /></td>
                 <td className="text-right tabular-nums">{formatBDT(o.total)}</td>
               </tr>
             ))}

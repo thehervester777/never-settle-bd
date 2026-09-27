@@ -20,7 +20,7 @@ export const checkoutSchema = z.object({
   city: z.string().trim().min(2, 'Enter your city or district').max(80),
   area: z.string().trim().max(80).optional().or(z.literal('')),
   zone: z.enum(['inside_dhaka', 'outside_dhaka']),
-  paymentMethod: z.enum(['COD', 'SSLCOMMERZ']),
+  paymentMethod: z.literal('COD').default('COD'),
   note: z.string().trim().max(500).optional().or(z.literal('')),
 });
 export type CheckoutInput = z.infer<typeof checkoutSchema>;

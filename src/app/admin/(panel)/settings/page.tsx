@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { requireAdmin } from '@/lib/auth';
 import { getSettings, saveSettings } from '@/lib/settings';
-import { sslcommerzConfigured } from '@/lib/sslcommerz';
 import { toPoisha } from '@/lib/money';
 
 export const metadata = { title: 'Settings' };
@@ -17,7 +16,6 @@ async function save(formData: FormData) {
     shippingOutsideDhaka: n('shippingOutsideDhaka'),
     freeShippingThreshold: n('freeShippingThreshold'),
     codEnabled: formData.get('codEnabled') === 'on',
-    sslcommerzEnabled: formData.get('sslcommerzEnabled') === 'on',
     announcement: t('announcement'),
     phone: t('phone'), email: t('email'), address: t('address'), hours: t('hours'),
     instagram: t('instagram'), facebook: t('facebook'), tiktok: t('tiktok'),
@@ -30,7 +28,6 @@ async function save(formData: FormData) {
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ saved?: string }> }) {
   const s = await getSettings();
   const { saved } = await searchParams;
-  const sandbox = process.env.SSLCZ_SANDBOX !== 'false';
   const taka = (p: number) => String(p / 100);
   const input = (name: string, label: string, value: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
     <div><label className="label" htmlFor={name}>{label}</label><input id={name} name={name} defaultValue={value} className="field bg-white" {...props} /></div>
@@ -43,15 +40,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
       <section className="admin-card space-y-4">
         <h2 className="font-semibold">Payments</h2>
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="codEnabled" defaultChecked={s.codEnabled} className="checkbox" /> Accept cash on delivery</label>
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="sslcommerzEnabled" defaultChecked={s.sslcommerzEnabled} className="checkbox" /> Accept online payments (SSLCOMMERZ)</label>
-        <p className={`p-3 text-xs ${sslcommerzConfigured() ? (sandbox ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900') : 'bg-red-100 text-red-900'}`}>
-          {!sslcommerzConfigured()
-            ? 'SSLCOMMERZ is not connected. Add SSLCZ_STORE_ID and SSLCZ_STORE_PASSWORD to the server environment.'
-            : sandbox
-              ? 'SSLCOMMERZ is in TEST (sandbox) mode: no real money is taken. Set SSLCZ_SANDBOX="false" with your live credentials to go live.'
-              : 'SSLCOMMERZ is LIVE: real payments are being taken.'}
-        </p>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="codEnabled" defaultChecked={s.codEnabled} className="checkbox" /> Accept cash on delivery (turn off to pause ordering)</label>
         {input('paymentLabels', 'Payment methods shown to shoppers (comma separated)', s.paymentLabels)}
       </section>
 

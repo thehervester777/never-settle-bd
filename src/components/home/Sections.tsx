@@ -122,7 +122,7 @@ export function Banner({ image }: { image: string }) {
 const PROMISES = [
   { icon: 'truck', big: '1–2 days', title: 'Fast delivery', text: 'Inside Dhaka, 2–4 days nationwide', href: '/faq' },
   { icon: 'return', big: '7 days', title: 'Easy exchange', text: 'Unworn with tags, no questions asked', href: '/policies/returns' },
-  { icon: 'shield', big: 'COD', title: 'Cash on delivery', text: 'Or pay online with cards, bKash or Nagad', href: '/faq' },
+  { icon: 'shield', big: 'COD', title: 'Cash on delivery', text: 'Pay in cash when your order arrives', href: '/faq' },
   { icon: 'bolt', big: '৳3,000+', title: 'Free delivery', text: 'On every order over ৳3,000', href: '/faq' },
 ] as const;
 
