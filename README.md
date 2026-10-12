@@ -96,11 +96,12 @@ Open `https://www.yourdomain.com/admin`. The first time, it asks you to **create
 
 1. **Database:** Vercel has no MySQL, so use one that accepts connections from the internet (e.g. Aiven, TiDB Cloud, Railway, or your cPanel MySQL with **Remote MySQL** allowing `%`). Import `database/install.sql` into it (plus `database/sample-data.sql` for demo products).
 2. **Import the repo** in Vercel (framework: Next.js; default build settings). `server.js` isn't used there.
-3. **Environment variables** (Settings → Environment Variables): `DATABASE_URL`, `AUTH_SECRET`, `NEXT_PUBLIC_SITE_URL` (e.g. `https://your-project.vercel.app`) and optionally the `SMTP_*` ones.
+3. **Environment variables** (Settings → Environment Variables): `DATABASE_URL`, `AUTH_SECRET` (32+ random characters), `NEXT_PUBLIC_SITE_URL` (e.g. `https://your-project.vercel.app`) and optionally the `SMTP_*` ones. Most cloud databases only accept encrypted connections: also add `DATABASE_SSL` = `true`. If your provider gives you a CA certificate file (Aiven does), paste its contents into `DATABASE_SSL_CA`.
 4. **Photo storage:** Storage → **Create** → **Blob** → connect it to the project. This adds `BLOB_READ_WRITE_TOKEN`, and admin photo uploads go there instead of the disk.
-5. **Redeploy**, then open `/admin` to create your admin account.
+5. **Redeploy** (Deployments → ⋯ → Redeploy). Settings changes only take effect after a redeploy.
+6. Open `/api/health`. It shows which settings are missing and whether the database works, with a plain-English fix if not. When it says `"ok": true`, open `/admin` to create your admin account.
 
-If most pages show "Application error: a server-side exception has occurred", the site can't reach the database: check `DATABASE_URL` and that the database allows remote connections. The deployment's **Logs** tab shows the exact error.
+If most pages show "Application error: a server-side exception has occurred", the site can't use the database. Open `/api/health` to see why. The deployment's **Logs** tab has the full error.
 
 ## Payments
 
