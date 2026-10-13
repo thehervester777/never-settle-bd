@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
+import { trackAddToCart } from '@/lib/track';
 
 export type CartLine = {
   variantId: number;
@@ -64,6 +65,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       if (found) return cur.map((l) => (l.variantId === line.variantId ? { ...l, ...line, quantity: Math.min(l.quantity + qty, line.maxQty) } : l));
       return [...cur, { ...line, quantity: Math.min(qty, line.maxQty) }];
     });
+    trackAddToCart({ variantId: line.variantId, productId: line.productId, name: line.title, price: line.price, quantity: Math.max(1, Math.min(qty, line.maxQty)), variant: line.options });
     setOpen(true);
   }, []);
 

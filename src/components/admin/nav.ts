@@ -21,6 +21,14 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
+    label: 'Marketing',
+    items: [
+      { href: '/admin/marketing', label: 'Campaigns & ROAS', icon: 'megaphone', perm: 'marketing' },
+      { href: '/admin/marketing/coupons', label: 'Discount codes', icon: 'ticket', perm: 'marketing' },
+      { href: '/admin/marketing/setup', label: 'Pixels & catalog', icon: 'target', perm: 'marketing' },
+    ],
+  },
+  {
     label: 'Finance',
     items: [
       { href: '/admin/finance', label: 'Profit & loss', icon: 'pnl', perm: 'finance' },

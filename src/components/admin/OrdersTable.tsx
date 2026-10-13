@@ -12,7 +12,7 @@ import { toast } from './toast';
 
 export type OrderRow = {
   id: number; number: string; when: string; ago: string; customer: string; phone: string; city: string; zone: string;
-  items: number; status: string; payment: string; total: string;
+  items: number; status: string; payment: string; total: string; via?: string | null; coupon?: string | null;
 };
 
 const ACTIONS: { label: string; op: BulkOp; icon: string }[] = [
@@ -63,6 +63,12 @@ export function OrdersTable({ rows, canManage }: { rows: OrderRow[]; canManage: 
                 <td className="whitespace-nowrap">
                   <Link className="font-semibold hover:underline" href={`/admin/orders/${o.id}`}>{o.number}</Link>
                   <p className="text-xs text-ink/45" title={o.when}>{o.ago} · {o.items} item{o.items === 1 ? '' : 's'}</p>
+                  {(o.via || o.coupon) && (
+                    <p className="mt-1 flex flex-wrap gap-1 text-[0.65rem] font-medium">
+                      {o.via && <span className="rounded-full bg-sky-50 px-1.5 py-0.5 text-sky-800">via {o.via}</span>}
+                      {o.coupon && <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-amber-800">{o.coupon}</span>}
+                    </p>
+                  )}
                 </td>
                 <td>{o.customer}<p className="text-xs text-ink/45">{o.phone}</p></td>
                 <td className="text-xs">{o.city}<p className="text-ink/45">{o.zone}</p></td>

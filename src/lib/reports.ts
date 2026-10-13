@@ -8,7 +8,9 @@ import { addDays, addMonths, utcBounds } from '@/lib/dates';
  * grouped by Bangladesh calendar day (UTC+6). Money is in poisha.
  *
  * Definitions used everywhere:
- * - Sales: orders placed in the period, excluding cancelled and returned ones (order value incl. delivery).
+ * - Sales: orders placed in the period, excluding cancelled and returned ones (order value incl. delivery,
+ *   after discount codes).
+ * - Product sales ("merch") are after discount codes, so margins and profit are real.
  * - Revenue (P&L): delivered orders, counted on the day they were delivered.
  * - Cost of goods: unit cost captured when the order was placed; for older orders without one, the
  *   variant's current cost.
@@ -39,7 +41,8 @@ export function buckets(span: Span, by: 'day' | 'month'): string[] {
 export async function salesSummary(span: Span) {
   const [a, b] = utcBounds(span);
   const [s] = await rows(sql`
-    SELECT COUNT(*) AS orders, COALESCE(SUM(o.total), 0) AS sales, COALESCE(SUM(o.subtotal), 0) AS merch, COALESCE(SUM(o.shipping_fee), 0) AS shipping
+    SELECT COUNT(*) AS orders, COALESCE(SUM(o.total), 0) AS sales, COALESCE(SUM(o.subtotal - o.discount), 0) AS merch,
+      COALESCE(SUM(o.shipping_fee), 0) AS shipping, COALESCE(SUM(o.discount), 0) AS discounts
     FROM orders o WHERE o.created_at >= ${ts(a)} AND o.created_at < ${ts(b)} AND ${LIVE}`);
   const [c] = await rows(sql`
     SELECT COALESCE(SUM(${ITEM_COST}), 0) AS cogs, COALESCE(SUM(oi.quantity), 0) AS units
@@ -50,7 +53,7 @@ export async function salesSummary(span: Span) {
     FROM orders o WHERE o.created_at >= ${ts(a)} AND o.created_at < ${ts(b)}`);
   const sales = num(s.sales), merch = num(s.merch), cogs = num(c.cogs), orders = num(s.orders);
   return {
-    orders, sales, merch, shipping: num(s.shipping), cogs, units: num(c.units),
+    orders, sales, merch, shipping: num(s.shipping), discounts: num(s.discounts), cogs, units: num(c.units),
     grossProfit: merch - cogs, margin: merch ? (merch - cogs) / merch : 0, aov: orders ? sales / orders : 0,
     placed: num(x.placed), cancelRate: num(x.placed) ? num(x.lost) / num(x.placed) : 0,
   };
@@ -59,7 +62,7 @@ export async function salesSummary(span: Span) {
 export async function salesSeries(span: Span, by: 'day' | 'month') {
   const [a, b] = utcBounds(span);
   const o1 = await rows<{ k: string; sales: unknown; orders: unknown; merch: unknown }>(sql`
-    SELECT ${bucket(sql`o.created_at`, by)} AS k, SUM(o.total) AS sales, COUNT(*) AS orders, SUM(o.subtotal) AS merch
+    SELECT ${bucket(sql`o.created_at`, by)} AS k, SUM(o.total) AS sales, COUNT(*) AS orders, SUM(o.subtotal - o.discount) AS merch
     FROM orders o WHERE o.created_at >= ${ts(a)} AND o.created_at < ${ts(b)} AND ${LIVE} GROUP BY k`);
   const c1 = await rows<{ k: string; cogs: unknown }>(sql`
     SELECT ${bucket(sql`o.created_at`, by)} AS k, SUM(${ITEM_COST}) AS cogs
@@ -106,7 +109,8 @@ export async function profitAndLoss(span: Span) {
   const [a, b] = utcBounds(span);
   const delivered = sql`o.status = 'DELIVERED' AND COALESCE(o.delivered_at, o.updated_at) >= ${ts(a)} AND COALESCE(o.delivered_at, o.updated_at) < ${ts(b)}`;
   const [rev] = await rows(sql`
-    SELECT COUNT(*) AS orders, COALESCE(SUM(o.subtotal), 0) AS merch, COALESCE(SUM(o.shipping_fee), 0) AS shipping FROM orders o WHERE ${delivered}`);
+    SELECT COUNT(*) AS orders, COALESCE(SUM(o.subtotal), 0) AS merch, COALESCE(SUM(o.discount), 0) AS discounts, COALESCE(SUM(o.shipping_fee), 0) AS shipping
+    FROM orders o WHERE ${delivered}`);
   const [cg] = await rows(sql`
     SELECT COALESCE(SUM(${ITEM_COST}), 0) AS cogs, COALESCE(SUM(oi.quantity), 0) AS units
     FROM order_items oi JOIN orders o ON o.id = oi.order_id LEFT JOIN variants v ON v.id = oi.variant_id WHERE ${delivered}`);
@@ -116,14 +120,14 @@ export async function profitAndLoss(span: Span) {
   const [pipe] = await rows(sql`
     SELECT COUNT(*) AS orders, COALESCE(SUM(o.total), 0) AS value FROM orders o WHERE o.status IN ('PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED')`);
 
-  const merch = num(rev.merch), shipping = num(rev.shipping), cogs = num(cg.cogs);
-  const revenue = merch + shipping;
+  const merch = num(rev.merch), discounts = num(rev.discounts), shipping = num(rev.shipping), cogs = num(cg.cogs);
+  const revenue = merch - discounts + shipping;
   const gross = revenue - cogs;
   const expenses = exp.map((e) => ({ category: e.category, total: num(e.total) }));
   const opex = expenses.reduce((s, e) => s + e.total, 0);
   const net = gross - opex;
   return {
-    orders: num(rev.orders), units: num(cg.units), merch, shipping, revenue, cogs, gross, expenses, opex, net,
+    orders: num(rev.orders), units: num(cg.units), merch, discounts, shipping, revenue, cogs, gross, expenses, opex, net,
     grossMargin: revenue ? gross / revenue : 0, netMargin: revenue ? net / revenue : 0,
     pipeline: { orders: num(pipe.orders), value: num(pipe.value) },
   };
@@ -134,7 +138,7 @@ export async function monthlyPnl(span: Span) {
   const delivered = sql`o.status = 'DELIVERED' AND COALESCE(o.delivered_at, o.updated_at) >= ${ts(a)} AND COALESCE(o.delivered_at, o.updated_at) < ${ts(b)}`;
   const at = sql`COALESCE(o.delivered_at, o.updated_at)`;
   const rev = await rows<{ k: string; revenue: unknown }>(sql`
-    SELECT ${bucket(at, 'month')} AS k, SUM(o.subtotal + o.shipping_fee) AS revenue FROM orders o WHERE ${delivered} GROUP BY k`);
+    SELECT ${bucket(at, 'month')} AS k, SUM(o.subtotal - o.discount + o.shipping_fee) AS revenue FROM orders o WHERE ${delivered} GROUP BY k`);
   const cg = await rows<{ k: string; cogs: unknown }>(sql`
     SELECT ${bucket(at, 'month')} AS k, SUM(${ITEM_COST}) AS cogs
     FROM order_items oi JOIN orders o ON o.id = oi.order_id LEFT JOIN variants v ON v.id = oi.variant_id WHERE ${delivered} GROUP BY k`);

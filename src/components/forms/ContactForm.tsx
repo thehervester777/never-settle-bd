@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
+import { trackLead } from '@/lib/track';
 
 export function ContactForm() {
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -13,7 +14,7 @@ export function ContactForm() {
     setState('sending'); setErrors({}); setError('');
     const res = await fetch('/api/contact', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.fromEntries(new FormData(e.currentTarget))) });
     const d = await res.json().catch(() => ({}));
-    if (res.ok) { setState('sent'); return; }
+    if (res.ok) { setState('sent'); trackLead('contact'); return; }
     setState('idle');
     if (d.errors) setErrors(d.errors); else setError(d.error || 'Something went wrong. Please try again.');
   }

@@ -51,6 +51,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
           <div className="text-sm">
             <p className="pb-1 text-xs font-semibold uppercase tracking-[0.12em] text-ink/40">Revenue</p>
             <Line indent label="Product sales" value={pl.merch} />
+            {pl.discounts > 0 && <Line indent label="Discount codes" value={pl.discounts} negative />}
             <Line indent label="Delivery charges" value={pl.shipping} />
             <Line strong label="Total revenue" value={pl.revenue} />
             <Line label="Cost of goods sold" value={pl.cogs} negative />

@@ -2,10 +2,20 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useCart } from '@/components/cart/CartProvider';
 import { Icon } from '@/components/ui/Icon';
 import { formatBDT } from '@/lib/money';
+import { COUPON_STORAGE } from '@/lib/attribution';
+import { trackBeginCheckout } from '@/lib/track';
+
+type Applied = { code: string; discount: number; freeShipping: boolean; summary: string };
+
+const storage = {
+  get: () => { try { return localStorage.getItem(COUPON_STORAGE) ?? ''; } catch { return ''; } },
+  set: (v: string) => { try { if (v) localStorage.setItem(COUPON_STORAGE, v); else localStorage.removeItem(COUPON_STORAGE); } catch { /* ignore */ } },
+};
 
 type Props = {
   shipping: { inside: number; outside: number; freeOver: number };
@@ -19,10 +29,56 @@ export function CheckoutForm({ shipping, codEnabled }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [codeInput, setCodeInput] = useState('');
+  const [applied, setApplied] = useState<Applied | null>(null);
+  const [codeError, setCodeError] = useState('');
+  const [applying, setApplying] = useState(false);
+  const [showCode, setShowCode] = useState(false);
+  const started = useRef(false);
 
   const free = shipping.freeOver > 0 && subtotal >= shipping.freeOver;
-  const fee = free ? 0 : zone === 'inside_dhaka' ? shipping.inside : shipping.outside;
-  const total = subtotal + fee;
+  const freeByCode = !!applied?.freeShipping;
+  const fee = free || freeByCode ? 0 : zone === 'inside_dhaka' ? shipping.inside : shipping.outside;
+  const discount = Math.min(applied?.discount ?? 0, subtotal);
+  const total = subtotal - discount + fee;
+
+  const applyCode = useCallback(async (raw: string, quiet = false) => {
+    const code = raw.trim();
+    if (!code) return;
+    setApplying(true);
+    setCodeError('');
+    const res = await fetch('/api/coupon', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, items: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })) }),
+    }).catch(() => null);
+    const data = res ? await res.json().catch(() => ({})) : {};
+    setApplying(false);
+    if (res?.ok && data.ok) {
+      setApplied({ code: data.code, discount: data.discount, freeShipping: data.freeShipping, summary: data.summary });
+      setCodeInput(data.code);
+      storage.set(data.code);
+    } else {
+      setApplied(null);
+      if (!quiet || data.error) setCodeError(data.error || 'Could not check this code. Please try again.');
+    }
+  }, [lines]);
+
+  // Shoppers arrive from an ad or post with ?code=…: that code waits in storage and is applied here.
+  // The same check runs again when the cart changes, so the discount always matches the cart.
+  const cartKey = lines.map((l) => `${l.variantId}x${l.quantity}`).join(',');
+  useEffect(() => {
+    if (!ready || !lines.length) return;
+    const code = applied?.code || storage.get();
+    if (code) { setShowCode(true); setCodeInput(code); void applyCode(code, true); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, cartKey]);
+
+  useEffect(() => {
+    if (!ready || !lines.length || started.current) return;
+    started.current = true;
+    trackBeginCheckout(lines.map((l) => ({ variantId: l.variantId, productId: l.productId, name: l.title, price: l.price, quantity: l.quantity, variant: l.options })));
+  }, [ready, lines]);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -33,16 +89,26 @@ export function CheckoutForm({ shipping, codEnabled }: Props) {
     const res = await fetch('/api/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...f, zone, paymentMethod: 'COD', items: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })) }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
+      body: JSON.stringify({ ...f, zone, paymentMethod: 'COD', couponCode: applied?.code ?? '', items: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })) }),
+    }).catch(() => null);
+    const data = res ? await res.json().catch(() => ({})) : {};
+    if (!res?.ok) {
       setSubmitting(false);
+      if (data.errors?.couponCode) {
+        // The code stopped working (expired, used up…): show why and let the shopper order without it.
+        setApplied(null);
+        setCodeError(data.errors.couponCode);
+        setShowCode(true);
+        setFormError(`${data.errors.couponCode} Remove the code or try another one.`);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
       if (data.errors) setErrors(data.errors);
       setFormError(data.error || (data.errors ? 'Please check the highlighted fields.' : 'Something went wrong. Please try again.'));
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
+    storage.set('');
     clear();
     router.push(data.redirect);
   }
@@ -136,9 +202,39 @@ export function CheckoutForm({ shipping, codEnabled }: Props) {
                 </li>
               ))}
             </ul>
+            <div className="mt-4 border-t border-ink/10 pt-4">
+              {!showCode && !applied ? (
+                <button type="button" onClick={() => setShowCode(true)} className="link-underline text-xs font-semibold uppercase tracking-[0.18em]">Have a discount code?</button>
+              ) : applied ? (
+                <div className="flex items-center justify-between gap-3 bg-paper px-3 py-2.5 text-sm">
+                  <span className="flex items-center gap-2"><Icon name="check" className="h-4 w-4 text-ink" /><span><strong className="tracking-wider">{applied.code}</strong><span className="block text-xs text-muted">{applied.summary}</span></span></span>
+                  <button type="button" onClick={() => { setApplied(null); setCodeInput(''); setCodeError(''); storage.set(''); }} className="text-xs text-muted underline hover:text-ink">Remove</button>
+                </div>
+              ) : (
+                <div>
+                  <label htmlFor="couponCode" className="label">Discount code</label>
+                  <div className="flex gap-2">
+                    <input
+                      id="couponCode" value={codeInput} onChange={(e) => setCodeInput(e.target.value.toUpperCase())} autoCapitalize="characters" autoComplete="off" spellCheck={false} maxLength={40}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void applyCode(codeInput); } }}
+                      className={`field flex-1 uppercase tracking-wider ${codeError ? 'border-sale' : ''}`} placeholder="e.g. EID20" aria-invalid={!!codeError} aria-describedby={codeError ? 'coupon-err' : undefined}
+                    />
+                    <button type="button" onClick={() => void applyCode(codeInput)} disabled={applying || !codeInput.trim()} className="btn btn-outline px-5">{applying ? '…' : 'Apply'}</button>
+                  </div>
+                  {codeError && <p id="coupon-err" className="mt-1.5 text-xs text-sale" role="alert">{codeError}</p>}
+                </div>
+              )}
+            </div>
             <dl className="mt-4 space-y-2 border-t border-ink/10 pt-4 text-sm">
               <div className="flex justify-between"><dt>Subtotal</dt><dd>{formatBDT(subtotal)}</dd></div>
-              <div className="flex justify-between"><dt>Delivery</dt><dd>{fee === 0 ? 'Free' : formatBDT(fee)}</dd></div>
+              <AnimatePresence initial={false}>
+                {discount > 0 && (
+                  <motion.div key="discount" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="flex justify-between overflow-hidden text-sale">
+                    <dt>Discount ({applied?.code})</dt><dd>−{formatBDT(discount)}</dd>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <div className="flex justify-between"><dt>Delivery{freeByCode && !free ? ` (${applied?.code})` : ''}</dt><dd>{fee === 0 ? 'Free' : formatBDT(fee)}</dd></div>
               <div className="flex justify-between border-t border-ink pt-3 text-base font-semibold"><dt>Total</dt><dd>{formatBDT(total)}</dd></div>
             </dl>
             <button className="btn btn-primary mt-6 w-full py-5" disabled={submitting || !codEnabled}>

@@ -70,6 +70,25 @@ CREATE TABLE `order_events` (
   INDEX `order_events_order_idx` (`order_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE `coupons` (
+  `id` int AUTO_INCREMENT NOT NULL,
+  `code` varchar(40) NOT NULL,
+  `description` varchar(160) NOT NULL DEFAULT '',
+  `type` varchar(20) NOT NULL,
+  `value` int NOT NULL DEFAULT 0,
+  `min_subtotal` int NOT NULL DEFAULT 0,
+  `max_discount` int,
+  `usage_limit` int,
+  `used_count` int NOT NULL DEFAULT 0,
+  `once_per_customer` boolean NOT NULL DEFAULT false,
+  `starts_at` datetime,
+  `ends_at` datetime,
+  `is_active` boolean NOT NULL DEFAULT true,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT `coupons_id` PRIMARY KEY(`id`),
+  CONSTRAINT `coupons_code_uq` UNIQUE(`code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE `activity_log` (
   `id` int AUTO_INCREMENT NOT NULL,
   `admin_id` int,
@@ -129,6 +148,12 @@ CREATE TABLE `orders` (
 	`stock_released` boolean NOT NULL DEFAULT false,
 	`delivered_at` datetime,
 	`paid_at` datetime,
+	`discount` int NOT NULL DEFAULT 0,
+	`coupon_code` varchar(40),
+	`source` varchar(40),
+	`medium` varchar(60),
+	`campaign` varchar(120),
+	`attribution` text,
 	`created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT `orders_id` PRIMARY KEY(`id`),

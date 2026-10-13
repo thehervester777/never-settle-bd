@@ -79,6 +79,13 @@ export const orders = mysqlTable('orders', {
   stockReleased: boolean('stock_released').notNull().default(false),
   deliveredAt: datetime('delivered_at', { mode: 'date' }),
   paidAt: datetime('paid_at', { mode: 'date' }),
+  discount: int('discount').notNull().default(0), // poisha taken off the subtotal by a discount code
+  couponCode: varchar('coupon_code', { length: 40 }),
+  // Where the shopper came from (ads, social, search…), captured from UTM tags, ad click ids and the referrer.
+  source: varchar('source', { length: 40 }),
+  medium: varchar('medium', { length: 60 }),
+  campaign: varchar('campaign', { length: 120 }),
+  attribution: text('attribution'),
   createdAt: createdAt(),
   updatedAt: datetime('updated_at', { mode: 'date' }).notNull().default(sql`CURRENT_TIMESTAMP`).$onUpdate(() => new Date()),
 }, (t) => [
@@ -176,6 +183,27 @@ export const expenses = mysqlTable('expenses', {
   adminId: int('admin_id'),
   createdAt: createdAt(),
 }, (t) => [index('expenses_spent_idx').on(t.spentOn)]);
+
+/* Discount codes for campaigns: percent off, fixed amount off, or free delivery. */
+export const COUPON_TYPES = ['PERCENT', 'FIXED', 'FREE_SHIPPING'] as const;
+export type CouponType = (typeof COUPON_TYPES)[number];
+
+export const coupons = mysqlTable('coupons', {
+  id: int('id').autoincrement().primaryKey(),
+  code: varchar('code', { length: 40 }).notNull(),
+  description: varchar('description', { length: 160 }).notNull().default(''),
+  type: varchar('type', { length: 20 }).$type<CouponType>().notNull(),
+  value: int('value').notNull().default(0), // percent (1–100) or poisha
+  minSubtotal: int('min_subtotal').notNull().default(0),
+  maxDiscount: int('max_discount'), // cap for percent codes, poisha
+  usageLimit: int('usage_limit'),
+  usedCount: int('used_count').notNull().default(0),
+  oncePerCustomer: boolean('once_per_customer').notNull().default(false),
+  startsAt: datetime('starts_at', { mode: 'date' }),
+  endsAt: datetime('ends_at', { mode: 'date' }),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex('coupons_code_uq').on(t.code)]);
 
 /* Order timeline: placed, status and payment changes, notes. */
 export const orderEvents = mysqlTable('order_events', {

@@ -17,6 +17,12 @@ const COLUMNS: [table: string, column: string, definition: string][] = [
   ['order_items', 'unit_cost', '`unit_cost` int NOT NULL DEFAULT 0'],
   ['orders', 'delivered_at', '`delivered_at` datetime NULL'],
   ['orders', 'paid_at', '`paid_at` datetime NULL'],
+  ['orders', 'discount', '`discount` int NOT NULL DEFAULT 0'],
+  ['orders', 'coupon_code', '`coupon_code` varchar(40) NULL'],
+  ['orders', 'source', '`source` varchar(40) NULL'],
+  ['orders', 'medium', '`medium` varchar(60) NULL'],
+  ['orders', 'campaign', '`campaign` varchar(120) NULL'],
+  ['orders', 'attribution', '`attribution` text NULL'],
 ];
 
 export const NEW_TABLES: Record<string, string> = {
@@ -57,6 +63,24 @@ export const NEW_TABLES: Record<string, string> = {
   \`created_at\` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT \`order_events_id\` PRIMARY KEY(\`id\`),
   INDEX \`order_events_order_idx\` (\`order_id\`)
+) ${TABLE_OPTIONS}`,
+  coupons: `CREATE TABLE IF NOT EXISTS \`coupons\` (
+  \`id\` int AUTO_INCREMENT NOT NULL,
+  \`code\` varchar(40) NOT NULL,
+  \`description\` varchar(160) NOT NULL DEFAULT '',
+  \`type\` varchar(20) NOT NULL,
+  \`value\` int NOT NULL DEFAULT 0,
+  \`min_subtotal\` int NOT NULL DEFAULT 0,
+  \`max_discount\` int,
+  \`usage_limit\` int,
+  \`used_count\` int NOT NULL DEFAULT 0,
+  \`once_per_customer\` boolean NOT NULL DEFAULT false,
+  \`starts_at\` datetime,
+  \`ends_at\` datetime,
+  \`is_active\` boolean NOT NULL DEFAULT true,
+  \`created_at\` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT \`coupons_id\` PRIMARY KEY(\`id\`),
+  CONSTRAINT \`coupons_code_uq\` UNIQUE(\`code\`)
 ) ${TABLE_OPTIONS}`,
   activity_log: `CREATE TABLE IF NOT EXISTS \`activity_log\` (
   \`id\` int AUTO_INCREMENT NOT NULL,

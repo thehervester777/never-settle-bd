@@ -6,6 +6,8 @@ import { formatBDT } from '@/lib/money';
 import { ClearCartOnMount } from '@/components/cart/ClearCartOnMount';
 import { SplitText } from '@/components/motion/Reveal';
 import { Icon } from '@/components/ui/Icon';
+import { PurchaseTracker } from '@/components/marketing/Trackers';
+import { hashedShopper } from '@/lib/meta-capi';
 
 export const metadata: Metadata = { title: 'Order confirmed', robots: { index: false } };
 
@@ -26,10 +28,19 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
   const order = await getOrderByNumber(number);
   if (!order) notFound();
   const isPaid = order.paymentStatus === 'PAID';
+  // Count the sale for the ad platforms only around the time it was placed, not when an old link is reopened.
+  const fresh = Date.now() - order.createdAt.getTime() < 6 * 3600_000 && order.status !== 'CANCELLED';
 
   return (
     <section className="container max-w-4xl pb-24 pt-12 md:pt-16">
       <ClearCartOnMount />
+      {fresh && (
+        <PurchaseTracker purchase={{
+          number: order.number, value: order.total, shipping: order.shippingFee, discount: order.discount, coupon: order.couponCode,
+          items: order.items.map((it) => ({ variantId: it.variantId, productId: it.productId ?? 0, name: it.title, price: it.unitPrice, quantity: it.quantity, variant: it.options || undefined })),
+          user: hashedShopper(order),
+        }} />
+      )}
       <p className="eyebrow mb-4 inline-flex items-center gap-2 text-muted"><Icon name="check" className="h-4 w-4 text-ink" /> Order {order.number}</p>
       <SplitText as="h1" text={'Order placed.\nThank you!'} className="font-display text-display-lg uppercase" onMount />
       <p className="mt-6 max-w-xl text-muted">
@@ -53,7 +64,8 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
           </ul>
           <dl className="mt-4 space-y-2 text-sm">
             <div className="flex justify-between"><dt>Subtotal</dt><dd>{formatBDT(order.subtotal)}</dd></div>
-            <div className="flex justify-between"><dt>Delivery</dt><dd>{order.shippingFee ? formatBDT(order.shippingFee) : 'Free'}</dd></div>
+            {order.discount > 0 && <div className="flex justify-between text-sale"><dt>Discount{order.couponCode ? ` (${order.couponCode})` : ''}</dt><dd>−{formatBDT(order.discount)}</dd></div>}
+            <div className="flex justify-between"><dt>Delivery{!order.discount && order.couponCode && !order.shippingFee ? ` (${order.couponCode})` : ''}</dt><dd>{order.shippingFee ? formatBDT(order.shippingFee) : 'Free'}</dd></div>
             <div className="flex justify-between border-t border-ink pt-3 text-base font-semibold"><dt>Total</dt><dd>{formatBDT(order.total)}</dd></div>
           </dl>
         </div>

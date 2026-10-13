@@ -15,9 +15,13 @@ const STYLES: Record<string, [string, string]> = {
   IN_STOCK: ['bg-emerald-50 text-emerald-800 ring-emerald-200', 'bg-emerald-500'],
   LOW: ['bg-amber-50 text-amber-800 ring-amber-200', 'bg-amber-500'],
   OUT: ['bg-red-50 text-red-700 ring-red-200', 'bg-red-500'],
+  SCHEDULED: ['bg-sky-50 text-sky-800 ring-sky-200', 'bg-sky-500'],
+  EXPIRED: ['bg-neutral-100 text-neutral-600 ring-neutral-200', 'bg-neutral-400'],
+  PAUSED: ['bg-amber-50 text-amber-800 ring-amber-200', 'bg-amber-500'],
+  USED_UP: ['bg-rose-50 text-rose-700 ring-rose-200', 'bg-rose-400'],
 };
 
-const LABELS: Record<string, string> = { PROCESSING: 'Packing', IN_STOCK: 'In stock', LOW: 'Low stock', OUT: 'Out of stock' };
+const LABELS: Record<string, string> = { PROCESSING: 'Packing', IN_STOCK: 'In stock', LOW: 'Low stock', OUT: 'Out of stock', USED_UP: 'Used up', ACTIVE: 'Live' };
 
 export function StatusBadge({ status, label }: { status: string; label?: string }) {
   const [box, dot] = STYLES[status] ?? ['bg-neutral-100 text-neutral-700 ring-neutral-200', 'bg-neutral-400'];
