@@ -70,13 +70,39 @@
 
   /* Admin */
   /* min-w-0 lets cards shrink inside grids on phones; tables then scroll sideways inside their card */
-  .admin-card { @apply min-w-0 border border-ink/10 bg-white p-5; }
-  .admin-table { @apply w-full min-w-[36rem] text-left text-sm; }
-  .admin-table th { @apply border-b border-ink/10 px-3 py-2.5 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted; }
-  .admin-table td { @apply border-b border-ink/5 px-3 py-3 align-middle; }
+  .admin-card { @apply min-w-0 rounded-2xl border border-black/[0.06] bg-white p-5 shadow-[0_1px_2px_rgba(16,16,16,0.04),0_10px_30px_-18px_rgba(16,16,16,0.18)]; }
+  .admin-card-title { @apply text-[0.95rem] font-semibold tracking-tight; }
+  .admin-table { @apply w-full min-w-[40rem] text-left text-sm; }
+  .admin-table th { @apply whitespace-nowrap border-b border-black/[0.06] bg-[#fafaf8] px-4 py-2.5 text-[0.7rem] font-medium uppercase tracking-[0.08em] text-ink/50 first:rounded-tl-2xl last:rounded-tr-2xl; }
+  .admin-table td { @apply border-b border-black/[0.04] px-4 py-3 align-middle; }
+  .admin-table tbody tr { @apply transition-colors duration-150; }
+  .admin-table tbody tr:hover { @apply bg-[#fafaf6]; }
+  .admin-table tbody tr:last-child td { @apply border-b-0; }
+
+  .abtn { @apply inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-medium transition-all duration-200 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50; }
+  .abtn-sm { @apply rounded-lg px-2.5 py-1.5 text-xs; }
+  .abtn-primary { @apply bg-ink text-white shadow-sm hover:bg-[#26262a]; }
+  .abtn-accent { @apply bg-accent text-ink shadow-sm hover:brightness-95; }
+  .abtn-outline { @apply border border-black/10 bg-white text-ink shadow-sm hover:border-black/20 hover:bg-[#fafaf8]; }
+  .abtn-ghost { @apply text-ink/70 hover:bg-black/[0.05] hover:text-ink; }
+  .abtn-danger { @apply bg-red-600 text-white shadow-sm hover:bg-red-700; }
+
+  .ainput { @apply form-input w-full rounded-xl border-black/10 bg-white px-3.5 py-2.5 text-sm shadow-sm transition placeholder:text-ink/35 focus:border-ink/40 focus:ring-4 focus:ring-accent/40; }
+  .aselect { @apply form-select w-full rounded-xl border-black/10 bg-white py-2.5 pl-3.5 pr-9 text-sm shadow-sm transition focus:border-ink/40 focus:ring-4 focus:ring-accent/40; }
+  .atextarea { @apply form-textarea w-full rounded-xl border-black/10 bg-white px-3.5 py-2.5 text-sm shadow-sm transition placeholder:text-ink/35 focus:border-ink/40 focus:ring-4 focus:ring-accent/40; }
+  .acheck { @apply form-checkbox h-4 w-4 rounded border-black/20 text-ink focus:ring-2 focus:ring-accent/60 focus:ring-offset-0; }
+  .alabel { @apply mb-1.5 block text-xs font-medium text-ink/60; }
+  .ahint { @apply mt-1.5 text-xs text-ink/50; }
+
+  .seg { @apply inline-flex flex-wrap gap-1 rounded-xl border border-black/[0.06] bg-white p-1 shadow-sm; }
+  .seg > a, .seg > button { @apply rounded-lg px-3 py-1.5 text-xs font-medium text-ink/60 transition-colors hover:text-ink; }
+  .seg > [aria-current='true'] { @apply bg-ink text-white hover:text-white; }
 }
 
 .scrollbar-none { scrollbar-width: none; }
+.tabular { font-variant-numeric: tabular-nums; }
+.admin-nav-scroll { scrollbar-width: thin; scrollbar-color: rgb(255 255 255 / 0.15) transparent; }
+@media print { .no-print { display: none !important; } }
 .scrollbar-none::-webkit-scrollbar { display: none; }
 
 @media (prefers-reduced-motion: reduce) {

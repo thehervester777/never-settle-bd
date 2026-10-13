@@ -8,6 +8,13 @@
       "when": 1790404110217,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1791848245085,
+      "tag": "0001_admin_upgrade",
+      "breakpoints": true
     }
   ]
 }

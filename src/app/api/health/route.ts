@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sql } from 'drizzle-orm';
-import { db, dbUsesSsl } from '@/db';
+import { db, dbUsesSsl, schemaStatus } from '@/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,10 +67,14 @@ export async function GET() {
       await db.execute(sql`select 1`);
       try {
         const [[counts]] = (await db.execute(sql`select (select count(*) from products) as products, (select count(*) from admins) as admins`)) as unknown as [[{ products: number; admins: number }]];
+        const upgrade = schemaStatus();
         database = {
-          ok: true,
+          ok: upgrade?.state !== 'failed',
           products: Number(counts.products),
           adminAccount: Number(counts.admins) > 0 ? 'created' : 'not yet: open /admin to create it',
+          tables: upgrade?.state === 'failed'
+            ? { ok: false, code: upgrade.error, fix: 'The database user needs permission to create and alter tables (ALL PRIVILEGES in cPanel → MySQL Databases).' }
+            : { ok: true, updated: upgrade?.applied.length ? upgrade.applied : 'up to date' },
         };
       } catch (e) {
         database = { ok: false, connected: true, ...explain(driverError(e)) };

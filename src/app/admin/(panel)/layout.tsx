@@ -1,8 +1,14 @@
-import Link from 'next/link';
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
+import { and, count, eq, lte, or } from 'drizzle-orm';
+import { db, schema } from '@/db';
 import { endSession, requireAdmin } from '@/lib/auth';
-import { AdminNav } from '@/components/admin/AdminNav';
+import { can, ROLE_INFO } from '@/lib/permissions';
+import { getSettings } from '@/lib/settings';
+import { AdminShell } from '@/components/admin/AdminShell';
+import { FlashToast } from '@/components/admin/FlashToast';
+import { NAV } from '@/components/admin/nav';
 
 export const metadata: Metadata = { title: { default: 'Admin', template: '%s — Admin' }, robots: { index: false } };
 export const dynamic = 'force-dynamic';
@@ -15,28 +21,28 @@ async function logout() {
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const admin = await requireAdmin();
+  const { orders, messages, variants, products } = schema;
+  const settings = await getSettings();
+  const zero = Promise.resolve([{ n: 0 }]);
+  const [[toConfirm], [unread], [lowStock]] = await Promise.all([
+    can(admin.role, 'orders.view') ? db.select({ n: count() }).from(orders).where(and(eq(orders.status, 'PENDING'), or(eq(orders.paymentMethod, 'COD'), eq(orders.paymentStatus, 'PAID')))) : zero,
+    can(admin.role, 'messages') ? db.select({ n: count() }).from(messages).where(eq(messages.isRead, false)) : zero,
+    can(admin.role, 'inventory')
+      ? db.select({ n: count() }).from(variants).innerJoin(products, eq(variants.productId, products.id)).where(and(lte(variants.stock, settings.lowStockThreshold), eq(products.isActive, true)))
+      : zero,
+  ]);
+  const nav = NAV.map((g) => ({ ...g, items: g.items.filter((i) => !i.perm || can(admin.role, i.perm)) })).filter((g) => g.items.length);
+
   return (
-    <div className="min-h-screen bg-[#f6f5f2] md:grid md:grid-cols-[240px_1fr]">
-      <aside className="bg-ink text-paper md:sticky md:top-0 md:h-screen">
-        <div className="flex items-center justify-between gap-4 p-5 md:block">
-          <div>
-            <Link href="/admin" className="font-display text-2xl uppercase">NEVER SETTLE</Link>
-            <p className="eyebrow mt-1 text-paper/50">Admin</p>
-          </div>
-          {/* On phones the sidebar footer is hidden, so the store link and log out live up here */}
-          <div className="flex items-center gap-4 text-xs text-paper/70 md:hidden">
-            <Link href="/" target="_blank" className="underline">Store ↗</Link>
-            <form action={logout}><button className="underline">Log out</button></form>
-          </div>
-        </div>
-        <AdminNav />
-        <div className="hidden p-5 text-xs text-paper/60 md:absolute md:bottom-0 md:block">
-          <p>{admin.name}</p>
-          <form action={logout}><button className="mt-2 underline">Log out</button></form>
-          <Link href="/" target="_blank" className="mt-2 block underline">View store ↗</Link>
-        </div>
-      </aside>
-      <div className="min-w-0 p-4 md:p-8">{children}</div>
-    </div>
+    <AdminShell
+      admin={{ name: admin.name, email: admin.email, roleLabel: ROLE_INFO[admin.role]?.label ?? admin.role }}
+      nav={nav}
+      badges={{ toConfirm: Number(toConfirm.n), unread: Number(unread.n), lowStock: Number(lowStock.n) }}
+      canSearchOrders={can(admin.role, 'orders.view')}
+      logout={logout}
+    >
+      {children}
+      <Suspense><FlashToast /></Suspense>
+    </AdminShell>
   );
 }

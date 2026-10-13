@@ -1,7 +1,7 @@
 /** Prices are stored as integers in poisha (1 taka = 100 poisha) to avoid rounding errors. */
 export function formatBDT(poisha: number): string {
   const taka = Math.round(poisha / 100);
-  return `৳${taka.toLocaleString('en-US')}`;
+  return `${taka < 0 ? '−' : ''}৳${Math.abs(taka).toLocaleString('en-US')}`;
 }
 
 export const toPoisha = (taka: number | string) => Math.round(Number(taka) * 100);

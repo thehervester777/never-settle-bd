@@ -1,6 +1,7 @@
 import { drizzle } from 'drizzle-orm/mysql2';
 import mysql from 'mysql2/promise';
 import * as schema from './schema';
+import { migrate, type MigrationStatus } from './migrate';
 
 // URL options some hosts put in their connection string to ask for TLS (mysql2 doesn't understand them itself).
 const SSL_PARAMS = ['ssl', 'ssl-mode', 'sslmode', 'sslaccept'];
@@ -41,12 +42,39 @@ function connectionOptions(): mysql.PoolOptions {
 }
 
 // One connection pool per server process (reused across hot reloads in development).
-const globalForDb = globalThis as unknown as { __nsPool?: mysql.Pool };
+const globalForDb = globalThis as unknown as { __nsPool?: mysql.Pool; __nsSchema?: { ready: Promise<void>; status: MigrationStatus | null; retryAt: number } };
 
 const options = connectionOptions();
-const pool = globalForDb.__nsPool ?? mysql.createPool(options);
+const rawPool = globalForDb.__nsPool ?? mysql.createPool(options);
+if (process.env.NODE_ENV !== 'production') globalForDb.__nsPool = rawPool;
 
-if (process.env.NODE_ENV !== 'production') globalForDb.__nsPool = pool;
+// Shared across module copies in the same process (Next.js can load this file more than once).
+const schemaState = (globalForDb.__nsSchema ??= { ready: Promise.resolve(), status: null, retryAt: 0 });
+
+/** Runs the additive schema upgrade once per process before the first query; retries a minute after a failure. */
+function ensureSchema(): Promise<void> {
+  if (schemaState.status?.state === 'ok' || Date.now() < schemaState.retryAt) return schemaState.ready;
+  schemaState.retryAt = Date.now() + 60_000;
+  schemaState.ready = migrate(rawPool)
+    .then((status) => {
+      schemaState.status = status;
+      if (status.state === 'ok') schemaState.retryAt = 0;
+    })
+    .catch((e: Error) => {
+      schemaState.status = { state: 'failed', applied: [], error: (e as { code?: string }).code || e.message };
+      console.error('[db] could not update the database tables', e);
+    });
+  return schemaState.ready;
+}
+
+export const schemaStatus = () => schemaState.status;
+
+// Drizzle only needs query() and getConnection(); both wait for the schema check first.
+const pool = {
+  query: async (...args: Parameters<mysql.Pool['query']>) => { await ensureSchema(); return rawPool.query(...args); },
+  execute: async (...args: Parameters<mysql.Pool['execute']>) => { await ensureSchema(); return rawPool.execute(...args); },
+  getConnection: async () => { await ensureSchema(); return rawPool.getConnection(); },
+} as unknown as mysql.Pool;
 
 export const db = drizzle(pool, { schema, mode: 'default' });
 /** Whether connections are encrypted (TLS). */

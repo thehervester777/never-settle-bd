@@ -1,113 +1,150 @@
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
-import { eq } from 'drizzle-orm';
+import { notFound } from 'next/navigation';
+import { count, eq, inArray, sql } from 'drizzle-orm';
 import { db, schema } from '@/db';
-import { ORDER_STATUSES, type OrderStatus } from '@/db/schema';
-import { requireAdmin } from '@/lib/auth';
+import { requirePermission } from '@/lib/auth';
+import { can } from '@/lib/permissions';
 import { formatBDT } from '@/lib/money';
-import { getOrderById, releaseStock } from '@/lib/orders';
+import { fmtDateTime, timeAgo } from '@/lib/dates';
+import { getOrderById } from '@/lib/orders';
 import { StatusBadge } from '@/components/admin/StatusBadge';
+import { Card, PageHeader } from '@/components/admin/ui';
+import { AdminIcon } from '@/components/admin/AdminIcon';
+import { OrderNoteForm, OrderStatusActions, OrderStepper } from '@/components/admin/OrderActions';
 
 export const metadata = { title: 'Order' };
 
-async function updateOrder(formData: FormData) {
-  'use server';
-  await requireAdmin();
-  const id = Number(formData.get('id'));
-  const status = String(formData.get('status')) as OrderStatus;
-  const paymentStatus = String(formData.get('paymentStatus'));
-  if (!ORDER_STATUSES.includes(status)) return;
-  const [o] = await db.select().from(schema.orders).where(eq(schema.orders.id, id));
-  if (!o) return;
-  const update: Partial<typeof schema.orders.$inferInsert> = { status };
-  // Cash on delivery: the admin marks the order paid when the courier hands over the cash.
-  if (['UNPAID', 'PAID', 'REFUNDED'].includes(paymentStatus)) update.paymentStatus = paymentStatus as 'UNPAID' | 'PAID' | 'REFUNDED';
-  await db.update(schema.orders).set(update).where(eq(schema.orders.id, id));
-  if (status === 'CANCELLED' || status === 'RETURNED') await releaseStock(id);
-  revalidatePath(`/admin/orders/${id}`);
-  redirect(`/admin/orders/${id}?saved=1`);
-}
+const EVENT_ICON: Record<string, string> = { CREATED: 'orders', STATUS: 'refresh', PAYMENT: 'cash', NOTE: 'note' };
 
-export default async function OrderDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ saved?: string }> }) {
+export default async function OrderDetail({ params }: { params: Promise<{ id: string }> }) {
+  const admin = await requirePermission('orders.view');
   const id = Number((await params).id);
-  const { saved } = await searchParams;
   const order = Number.isFinite(id) ? await getOrderById(id) : null;
   if (!order) notFound();
-  const phone = order.phone;
+  const seeCosts = can(admin.role, 'costs'), canManage = can(admin.role, 'orders.manage');
+
+  const variantIds = order.items.map((i) => i.variantId).filter((v): v is number => !!v);
+  const [[history], currentCosts] = await Promise.all([
+    db.select({ n: count(), spent: sql<number>`COALESCE(SUM(CASE WHEN ${schema.orders.status} NOT IN ('CANCELLED', 'RETURNED') THEN ${schema.orders.total} END), 0)` })
+      .from(schema.orders).where(eq(schema.orders.phone, order.phone)),
+    seeCosts && variantIds.length ? db.select({ id: schema.variants.id, cost: schema.variants.cost }).from(schema.variants).where(inArray(schema.variants.id, variantIds)) : Promise.resolve([]),
+  ]);
+  const costOf = new Map(currentCosts.map((c) => [c.id, c.cost]));
+  const lineCost = (it: (typeof order.items)[number]) => (it.unitCost || (it.variantId ? costOf.get(it.variantId) ?? 0 : 0)) * it.quantity;
+  const cogs = order.items.reduce((s, it) => s + lineCost(it), 0);
+  const profit = order.subtotal - cogs;
 
   return (
-    <div className="space-y-6">
-      <Link href="/admin/orders" className="text-sm underline">← Orders</Link>
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="font-display text-4xl uppercase">{order.number}</h1>
-        <StatusBadge status={order.status} /><StatusBadge status={order.paymentStatus} />
-      </div>
-      <p className="text-sm text-muted">Placed {order.createdAt.toLocaleString('en-GB', { timeZone: 'Asia/Dhaka', dateStyle: 'full', timeStyle: 'short' })}</p>
-      {saved && <p className="bg-emerald-100 p-3 text-sm text-emerald-900">Saved.</p>}
+    <div>
+      <PageHeader
+        back={{ href: '/admin/orders', label: 'Orders' }}
+        title={order.number}
+        description={<span className="inline-flex flex-wrap items-center gap-2">Placed {fmtDateTime(order.createdAt)} <StatusBadge status={order.status} /> <StatusBadge status={order.paymentStatus} /></span>}
+        actions={(
+          <>
+            <a href={`/admin/print?ids=${order.id}&doc=slip`} target="_blank" className="abtn abtn-outline"><AdminIcon name="box" className="h-4 w-4" /> Packing slip</a>
+            <a href={`/admin/print?ids=${order.id}`} target="_blank" className="abtn abtn-primary"><AdminIcon name="print" className="h-4 w-4" /> Invoice</a>
+          </>
+        )}
+      />
+
+      {(order.status === 'CANCELLED' || order.status === 'RETURNED') ? (
+        <div className="mb-6 flex items-center gap-3 rounded-2xl bg-neutral-100 p-4 text-sm text-neutral-700">
+          <AdminIcon name="alert" className="h-5 w-5" /> This order was {order.status.toLowerCase()}. Its items are back in stock.
+        </div>
+      ) : (
+        <div className="admin-card mb-6"><OrderStepper status={order.status} /></div>
+      )}
 
       <div className="grid gap-6 xl:grid-cols-3 [&>*]:min-w-0">
         <div className="space-y-6 xl:col-span-2">
-          <section className="admin-card">
-            <h2 className="mb-3 font-semibold">Items</h2>
-            <div className="overflow-x-auto"><table className="admin-table">
-              <thead><tr><th>Product</th><th>Qty</th><th className="text-right">Price</th><th className="text-right">Total</th></tr></thead>
-              <tbody>
-                {order.items.map((it) => (
-                  <tr key={it.id}>
-                    <td><div className="flex items-center gap-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      {it.image && <img src={it.image} alt="" className="h-14 w-11 object-cover" />}
-                      <div>{it.title}<p className="text-xs text-muted">{it.options}</p></div>
-                    </div></td>
-                    <td className="tabular-nums">{it.quantity}</td>
-                    <td className="text-right tabular-nums">{formatBDT(it.unitPrice)}</td>
-                    <td className="text-right tabular-nums">{formatBDT(it.unitPrice * it.quantity)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table></div>
-            <dl className="ml-auto mt-4 max-w-xs space-y-1 text-sm">
-              <div className="flex justify-between"><dt>Subtotal</dt><dd>{formatBDT(order.subtotal)}</dd></div>
-              <div className="flex justify-between"><dt>Delivery</dt><dd>{formatBDT(order.shippingFee)}</dd></div>
-              <div className="flex justify-between border-t border-ink/10 pt-2 font-semibold"><dt>Total</dt><dd>{formatBDT(order.total)}</dd></div>
-            </dl>
-          </section>
+          <Card title="Items" padded={false}>
+            <div className="overflow-x-auto">
+              <table className="admin-table">
+                <thead><tr><th>Product</th><th className="text-right">Qty</th><th className="text-right">Price</th>{seeCosts && <th className="text-right">Cost</th>}<th className="text-right">Total</th></tr></thead>
+                <tbody>
+                  {order.items.map((it) => (
+                    <tr key={it.id}>
+                      <td>
+                        <div className="flex items-center gap-3">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          {it.image ? <img src={it.image} alt="" className="h-14 w-11 rounded-lg object-cover" /> : <span className="h-14 w-11 rounded-lg bg-[#f4f4f1]" />}
+                          <div>
+                            {it.productId && can(admin.role, 'products') ? <Link href={`/admin/products/${it.productId}`} className="font-medium hover:underline">{it.title}</Link> : <span className="font-medium">{it.title}</span>}
+                            <p className="text-xs text-ink/45">{it.options || 'One size'}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="text-right tabular">{it.quantity}</td>
+                      <td className="text-right tabular">{formatBDT(it.unitPrice)}</td>
+                      {seeCosts && <td className="text-right tabular text-ink/55">{formatBDT(lineCost(it) / it.quantity)}</td>}
+                      <td className="text-right font-medium tabular">{formatBDT(it.unitPrice * it.quantity)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex flex-wrap justify-between gap-6 border-t border-black/[0.05] p-5">
+              {seeCosts ? (
+                <div className="rounded-xl bg-[#f7f7f4] px-4 py-3 text-sm">
+                  <p className="text-ink/55">Profit on this order</p>
+                  <p className={`text-xl font-semibold ${profit >= 0 ? '' : 'text-red-600'}`}>{formatBDT(profit)}</p>
+                  <p className="text-xs text-ink/45">{order.subtotal ? `${((profit / order.subtotal) * 100).toFixed(1)}% margin on products` : ''}</p>
+                </div>
+              ) : <span />}
+              <dl className="w-full max-w-xs space-y-1.5 text-sm">
+                <div className="flex justify-between"><dt className="text-ink/55">Subtotal</dt><dd className="tabular">{formatBDT(order.subtotal)}</dd></div>
+                <div className="flex justify-between"><dt className="text-ink/55">Delivery ({order.zone === 'inside_dhaka' ? 'inside Dhaka' : 'outside Dhaka'})</dt><dd className="tabular">{order.shippingFee ? formatBDT(order.shippingFee) : 'Free'}</dd></div>
+                <div className="flex justify-between border-t border-black/[0.06] pt-2 text-base font-semibold"><dt>Total</dt><dd className="tabular">{formatBDT(order.total)}</dd></div>
+              </dl>
+            </div>
+          </Card>
 
+          <Card title="Timeline" description="Everything that happened to this order">
+            <ol className="relative space-y-5 border-l border-black/[0.07] pl-6">
+              {[...order.events].reverse().map((e) => (
+                <li key={e.id} className="relative">
+                  <span className="absolute -left-[37px] grid h-7 w-7 place-items-center rounded-full border border-black/[0.06] bg-white text-ink/60 shadow-sm"><AdminIcon name={EVENT_ICON[e.type] ?? 'activity'} className="h-3.5 w-3.5" /></span>
+                  <p className={`text-sm ${e.type === 'NOTE' ? 'rounded-xl bg-amber-50 px-3 py-2 text-amber-900' : ''}`}>{e.message}</p>
+                  <p className="mt-0.5 text-xs text-ink/40">{e.adminName ?? 'Customer'} · {fmtDateTime(e.createdAt)}{Date.now() - e.createdAt.getTime() < 7 * 86_400_000 ? ` · ${timeAgo(e.createdAt)}` : ''}</p>
+                </li>
+              ))}
+              {!order.events.length && <li className="text-sm text-ink/45">Placed {fmtDateTime(order.createdAt)}. History is recorded from now on.</li>}
+            </ol>
+            <div className="mt-5"><OrderNoteForm id={order.id} /></div>
+          </Card>
         </div>
 
         <div className="space-y-6">
-          <section className="admin-card">
-            <h2 className="mb-3 font-semibold">Update order</h2>
-            <form action={updateOrder} className="space-y-4">
-              <input type="hidden" name="id" value={order.id} />
+          {canManage && (
+            <Card title="Actions">
+              <OrderStatusActions id={order.id} status={order.status} payment={order.paymentStatus} />
+            </Card>
+          )}
+          <Card title="Customer" actions={can(admin.role, 'customers') ? <Link href={`/admin/customers/${encodeURIComponent(order.phone)}`} className="text-xs font-medium text-ink/55 hover:text-ink">Profile</Link> : undefined}>
+            <div className="flex items-center gap-3">
+              <span className="grid h-11 w-11 place-items-center rounded-full bg-[#f4f4f1] text-sm font-semibold">{order.customerName.split(' ').map((w) => w[0]).slice(0, 2).join('')}</span>
               <div>
-                <label htmlFor="status" className="label">Order status</label>
-                <select id="status" name="status" defaultValue={order.status} className="field-select bg-white">
-                  {ORDER_STATUSES.map((s) => <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>)}
-                </select>
-                <p className="mt-1 text-xs text-muted">Cancelled or returned puts the items back in stock.</p>
+                <p className="font-medium">{order.customerName}</p>
+                <p className="text-xs text-ink/50">{Number(history.n)} order{Number(history.n) === 1 ? '' : 's'}{can(admin.role, 'sales') ? ` · ${formatBDT(Number(history.spent ?? 0))} lifetime` : ''}</p>
               </div>
-              <div>
-                <label htmlFor="paymentStatus" className="label">Payment</label>
-                <select id="paymentStatus" name="paymentStatus" defaultValue={order.paymentStatus} className="field-select bg-white">
-                  {['UNPAID', 'PAID', 'REFUNDED'].map((s) => <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>)}
-                </select>
-              </div>
-              <button className="btn btn-primary w-full">Save</button>
-            </form>
-          </section>
-          <section className="admin-card text-sm">
-            <h2 className="mb-3 font-semibold">Customer</h2>
-            <p className="font-medium">{order.customerName}</p>
-            <p><a href={`tel:${phone}`} className="underline">{phone}</a></p>
-            {order.email && <p><a href={`mailto:${order.email}`} className="underline">{order.email}</a></p>}
-            <h3 className="mb-1 mt-4 text-xs font-semibold uppercase tracking-[0.14em] text-muted">Delivery</h3>
-            <p>{order.address}<br />{[order.area, order.city].filter(Boolean).join(', ')}<br />{order.zone === 'inside_dhaka' ? 'Inside Dhaka' : 'Outside Dhaka'}</p>
-            {order.note && <><h3 className="mb-1 mt-4 text-xs font-semibold uppercase tracking-[0.14em] text-muted">Note</h3><p>{order.note}</p></>}
-            <h3 className="mb-1 mt-4 text-xs font-semibold uppercase tracking-[0.14em] text-muted">Payment method</h3>
-            <p>Cash on delivery</p>
-          </section>
+            </div>
+            <ul className="mt-4 space-y-2.5 text-sm">
+              <li className="flex gap-2.5"><AdminIcon name="phone" className="mt-0.5 h-4 w-4 shrink-0 text-ink/40" /><a href={`tel:${order.phone}`} className="hover:underline">{order.phone}</a></li>
+              {order.email && <li className="flex gap-2.5"><AdminIcon name="mail" className="mt-0.5 h-4 w-4 shrink-0 text-ink/40" /><a href={`mailto:${order.email}`} className="break-all hover:underline">{order.email}</a></li>}
+              <li className="flex gap-2.5"><AdminIcon name="pin" className="mt-0.5 h-4 w-4 shrink-0 text-ink/40" /><span>{order.address}<br />{[order.area, order.city].filter(Boolean).join(', ')}</span></li>
+            </ul>
+            {order.note && <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900"><span className="font-medium">Customer note:</span> {order.note}</p>}
+          </Card>
+          <Card title="Payment">
+            <dl className="space-y-2 text-sm">
+              <div className="flex justify-between"><dt className="text-ink/55">Method</dt><dd>Cash on delivery</dd></div>
+              <div className="flex justify-between"><dt className="text-ink/55">Status</dt><dd><StatusBadge status={order.paymentStatus} /></dd></div>
+              {order.paidAt && <div className="flex justify-between"><dt className="text-ink/55">Received</dt><dd>{fmtDateTime(order.paidAt)}</dd></div>}
+              {order.deliveredAt && <div className="flex justify-between"><dt className="text-ink/55">Delivered</dt><dd>{fmtDateTime(order.deliveredAt)}</dd></div>}
+              <div className="flex justify-between border-t border-black/[0.06] pt-2 font-semibold"><dt>{order.paymentStatus === 'PAID' ? 'Collected' : 'To collect'}</dt><dd className="tabular">{formatBDT(order.total)}</dd></div>
+            </dl>
+          </Card>
         </div>
       </div>
     </div>

@@ -9,6 +9,9 @@ CREATE TABLE `admins` (
 	`email` varchar(160) NOT NULL,
 	`name` varchar(120) NOT NULL,
 	`password_hash` varchar(100) NOT NULL,
+	`role` varchar(20) NOT NULL DEFAULT 'OWNER',
+	`is_active` boolean NOT NULL DEFAULT true,
+	`last_login_at` datetime,
 	`created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT `admins_id` PRIMARY KEY(`id`),
 	CONSTRAINT `admins_email_uq` UNIQUE(`email`)
@@ -24,6 +27,60 @@ CREATE TABLE `categories` (
 	`created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT `categories_id` PRIMARY KEY(`id`),
 	CONSTRAINT `categories_slug_uq` UNIQUE(`slug`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `stock_movements` (
+  `id` int AUTO_INCREMENT NOT NULL,
+  `variant_id` int NOT NULL,
+  `product_id` int NOT NULL,
+  `change` int NOT NULL,
+  `balance_after` int NOT NULL,
+  `reason` varchar(20) NOT NULL,
+  `unit_cost` int,
+  `order_id` int,
+  `note` varchar(255),
+  `admin_id` int,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT `stock_movements_id` PRIMARY KEY(`id`),
+  INDEX `stock_movements_variant_idx` (`variant_id`),
+  INDEX `stock_movements_created_idx` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `expenses` (
+  `id` int AUTO_INCREMENT NOT NULL,
+  `spent_on` date NOT NULL,
+  `category` varchar(40) NOT NULL,
+  `description` varchar(255) NOT NULL DEFAULT '',
+  `amount` int NOT NULL,
+  `admin_id` int,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT `expenses_id` PRIMARY KEY(`id`),
+  INDEX `expenses_spent_idx` (`spent_on`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `order_events` (
+  `id` int AUTO_INCREMENT NOT NULL,
+  `order_id` int NOT NULL,
+  `type` varchar(20) NOT NULL,
+  `message` varchar(255) NOT NULL,
+  `admin_id` int,
+  `admin_name` varchar(120),
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT `order_events_id` PRIMARY KEY(`id`),
+  INDEX `order_events_order_idx` (`order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `activity_log` (
+  `id` int AUTO_INCREMENT NOT NULL,
+  `admin_id` int,
+  `admin_name` varchar(120) NOT NULL,
+  `action` varchar(60) NOT NULL,
+  `entity` varchar(30) NOT NULL,
+  `entity_id` varchar(40),
+  `summary` varchar(255) NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT `activity_log_id` PRIMARY KEY(`id`),
+  INDEX `activity_log_created_idx` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `messages` (
@@ -47,6 +104,7 @@ CREATE TABLE `order_items` (
 	`options` varchar(120) NOT NULL DEFAULT '',
 	`image` varchar(500),
 	`unit_price` int NOT NULL,
+	`unit_cost` int NOT NULL DEFAULT 0,
 	`quantity` int NOT NULL,
 	CONSTRAINT `order_items_id` PRIMARY KEY(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -69,6 +127,8 @@ CREATE TABLE `orders` (
 	`shipping_fee` int NOT NULL,
 	`total` int NOT NULL,
 	`stock_released` boolean NOT NULL DEFAULT false,
+	`delivered_at` datetime,
+	`paid_at` datetime,
 	`created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT `orders_id` PRIMARY KEY(`id`),
@@ -141,6 +201,7 @@ CREATE TABLE `variants` (
 	`size` varchar(30),
 	`sku` varchar(80),
 	`stock` int NOT NULL DEFAULT 0,
+	`cost` int NOT NULL DEFAULT 0,
 	CONSTRAINT `variants_id` PRIMARY KEY(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

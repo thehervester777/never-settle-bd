@@ -18,6 +18,8 @@ export type StoreSettings = {
   facebook: string;
   tiktok: string;
   paymentLabels: string; // comma separated, shown to shoppers
+  lowStockThreshold: number; // units; at or below this a variant counts as low stock
+  invoiceNote: string; // printed at the bottom of invoices
 };
 
 export const DEFAULT_SETTINGS: StoreSettings = {
@@ -34,6 +36,8 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   facebook: '',
   tiktok: '',
   paymentLabels: 'Cash on delivery',
+  lowStockThreshold: 3,
+  invoiceNote: 'Thank you for shopping with NEVER SETTLE. Exchanges within 7 days with tags attached.',
 };
 
 export const getSettings = cache(async (): Promise<StoreSettings> => {

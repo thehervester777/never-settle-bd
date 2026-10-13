@@ -113,3 +113,10 @@ INSERT INTO `variants` (`id`, `product_id`, `color`, `size`, `sku`, `stock`) VAL
 INSERT INTO `variants` (`id`, `product_id`, `color`, `size`, `sku`, `stock`) VALUES (67,10,'Brown','44',NULL,0);
 INSERT INTO `variants` (`id`, `product_id`, `color`, `size`, `sku`, `stock`) VALUES (68,11,NULL,NULL,NULL,20);
 INSERT INTO `variants` (`id`, `product_id`, `color`, `size`, `sku`, `stock`) VALUES (69,12,NULL,NULL,NULL,20);
+
+-- Demo purchase costs (about 42% of the selling price) so profit and inventory value reports have numbers.
+UPDATE `variants` v JOIN `products` p ON p.`id` = v.`product_id` SET v.`cost` = ROUND(p.`price` * 0.42 / 10000) * 10000;
+
+-- Opening stock in the inventory history.
+INSERT INTO `stock_movements` (`variant_id`, `product_id`, `change`, `balance_after`, `reason`, `note`)
+SELECT `id`, `product_id`, `stock`, `stock`, 'INITIAL', 'Opening stock' FROM `variants`;

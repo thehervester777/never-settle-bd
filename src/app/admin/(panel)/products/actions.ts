@@ -6,8 +6,11 @@ import { revalidatePath } from 'next/cache';
 import { and, eq, ne, notInArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, schema } from '@/db';
-import { requireAdmin } from '@/lib/auth';
+import { requirePermission } from '@/lib/auth';
+import { can } from '@/lib/permissions';
 import { toPoisha } from '@/lib/money';
+import { logActivity } from '@/lib/activity';
+import { recordMovement } from '@/lib/inventory';
 import { MAX_UPLOAD_BYTES, storeUpload } from '@/lib/uploads';
 
 
@@ -30,6 +33,7 @@ const productSchema = z.object({
     size: z.string().trim().max(30).optional(),
     sku: z.string().trim().max(80).optional(),
     stock: z.coerce.number().int().min(0).max(100000),
+    cost: z.union([z.coerce.number().min(0).max(10_000_000), z.literal('')]).optional(), // taka
   })).min(1, 'Add at least one variant (use one row with no color/size for single items)'),
   images: z.array(z.object({ url: z.string().min(1).max(500), alt: z.string().max(200).optional() })).max(12),
 });
@@ -38,7 +42,7 @@ export type ProductFormState = { error?: string } | undefined;
 
 /** Accepts JPEG, PNG or WebP up to 4 MB; returns the public URL. */
 export async function uploadImage(formData: FormData): Promise<{ url?: string; error?: string }> {
-  await requireAdmin();
+  await requirePermission('products');
   const file = formData.get('file');
   if (!(file instanceof File) || file.size === 0) return { error: 'Choose an image to upload.' };
   const types: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
@@ -65,7 +69,8 @@ export async function uploadImage(formData: FormData): Promise<{ url?: string; e
 }
 
 export async function saveProduct(id: number | null, payload: unknown): Promise<ProductFormState> {
-  await requireAdmin();
+  const admin = await requirePermission('products');
+  const canCost = can(admin.role, 'costs');
   const parsed = productSchema.safeParse(payload);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
@@ -92,21 +97,35 @@ export async function saveProduct(id: number | null, payload: unknown): Promise<
     await tx.delete(schema.productImages).where(eq(schema.productImages.productId, pid));
     if (d.images.length) await tx.insert(schema.productImages).values(d.images.map((im, i) => ({ productId: pid, url: im.url, alt: im.alt ?? '', sortOrder: i })));
     // Variants: update existing rows (keeps order history links), add new ones, remove deleted ones.
+    // Every stock difference is written to the stock history.
+    const before = await tx.select().from(schema.variants).where(eq(schema.variants.productId, pid)).for('update');
     const keepIds = d.variants.filter((v) => v.id).map((v) => v.id!);
+    for (const old of before.filter((v) => !keepIds.includes(v.id))) {
+      if (old.stock) await recordMovement(tx, { variantId: old.id, productId: pid, change: -old.stock, balanceAfter: 0, reason: 'ADJUST', note: 'Size/colour removed from product', adminId: admin.id });
+    }
     await tx.delete(schema.variants).where(and(eq(schema.variants.productId, pid), keepIds.length ? notInArray(schema.variants.id, keepIds) : undefined));
     for (const v of d.variants) {
       const row = { productId: pid, color: v.color || null, size: v.size || null, sku: v.sku || null, stock: v.stock };
-      if (v.id) await tx.update(schema.variants).set(row).where(and(eq(schema.variants.id, v.id), eq(schema.variants.productId, pid)));
-      else await tx.insert(schema.variants).values(row);
+      const cost = canCost && v.cost !== undefined && v.cost !== '' ? toPoisha(v.cost) : undefined;
+      const old = v.id ? before.find((b) => b.id === v.id) : undefined;
+      if (old) {
+        await tx.update(schema.variants).set({ ...row, ...(cost !== undefined ? { cost } : {}) }).where(and(eq(schema.variants.id, old.id), eq(schema.variants.productId, pid)));
+        if (old.stock !== v.stock) await recordMovement(tx, { variantId: old.id, productId: pid, change: v.stock - old.stock, balanceAfter: v.stock, reason: 'ADJUST', note: 'Edited in product editor', adminId: admin.id });
+      } else {
+        const [r] = await tx.insert(schema.variants).values({ ...row, cost: cost ?? 0 });
+        if (v.stock) await recordMovement(tx, { variantId: Number(r.insertId), productId: pid, change: v.stock, balanceAfter: v.stock, reason: 'INITIAL', note: 'New size/colour', adminId: admin.id });
+      }
     }
   });
 
+  await logActivity(admin, id ? 'product.update' : 'product.create', 'product', productId, `${id ? 'Edited' : 'Added'} product ${d.title}`);
   revalidatePath('/', 'layout');
-  redirect(`/admin/products/${productId}?saved=1`);
+  redirect(`/admin/products/${productId}?flash=saved`);
 }
 
 export async function deleteProduct(id: number) {
-  await requireAdmin();
+  const admin = await requirePermission('products');
+  const [p] = await db.select({ title: schema.products.title }).from(schema.products).where(eq(schema.products.id, id)).limit(1);
   // Hide rather than delete when the product has orders, so order history stays intact.
   const used = await db.select({ id: schema.orderItems.id }).from(schema.orderItems).where(eq(schema.orderItems.productId, id)).limit(1);
   if (used.length) {
@@ -116,6 +135,7 @@ export async function deleteProduct(id: number) {
     await db.delete(schema.variants).where(eq(schema.variants.productId, id));
     await db.delete(schema.products).where(eq(schema.products.id, id));
   }
+  await logActivity(admin, 'product.delete', 'product', id, `${used.length ? 'Hid' : 'Deleted'} product ${p?.title ?? id}`);
   revalidatePath('/', 'layout');
-  redirect('/admin/products');
+  redirect('/admin/products?flash=deleted');
 }

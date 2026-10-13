@@ -1,70 +1,104 @@
 import Link from 'next/link';
-import { and, desc, eq, like, or, type SQL } from 'drizzle-orm';
+import { count, desc, inArray, sql } from 'drizzle-orm';
 import { db, schema } from '@/db';
-import { ORDER_STATUSES } from '@/db/schema';
+import { requirePermission } from '@/lib/auth';
+import { can } from '@/lib/permissions';
 import { formatBDT } from '@/lib/money';
-import { StatusBadge } from '@/components/admin/StatusBadge';
+import { fmtDateTime, timeAgo } from '@/lib/dates';
+import { orderWhere, type OrderFilters } from '@/lib/order-filters';
+import { OrdersTable } from '@/components/admin/OrdersTable';
+import { PageHeader } from '@/components/admin/ui';
+import { AdminIcon } from '@/components/admin/AdminIcon';
 
 export const metadata = { title: 'Orders' };
+const PER_PAGE = 30;
 
-export default async function OrdersPage({ searchParams }: { searchParams: Promise<{ status?: string; q?: string; page?: string }> }) {
+const TABS: [string | undefined, string][] = [
+  [undefined, 'All'], ['TO_CONFIRM', 'To confirm'], ['TO_SHIP', 'To ship'], ['SHIPPED', 'Shipped'], ['DELIVERED', 'Delivered'], ['CANCELLED', 'Cancelled'], ['RETURNED', 'Returned'],
+];
+
+export default async function OrdersPage({ searchParams }: { searchParams: Promise<OrderFilters> }) {
+  const admin = await requirePermission('orders.view');
   const sp = await searchParams;
-  const { orders } = schema;
-  const where: SQL[] = [];
-  if (sp.status === 'TO_CONFIRM') {
-    // New orders to call and confirm: cash on delivery, or paid online. Skips shoppers who abandoned online payment.
-    where.push(eq(orders.status, 'PENDING'), or(eq(orders.paymentMethod, 'COD'), eq(orders.paymentStatus, 'PAID'))!);
-  } else if (sp.status && (ORDER_STATUSES as readonly string[]).includes(sp.status)) where.push(eq(orders.status, sp.status as (typeof ORDER_STATUSES)[number]));
-  if (sp.q) where.push(or(like(orders.number, `%${sp.q}%`), like(orders.phone, `%${sp.q}%`), like(orders.customerName, `%${sp.q}%`))!);
+  const { orders, orderItems } = schema;
   const page = Math.max(1, Number(sp.page) || 1);
-  const rows = await db.select().from(orders).where(where.length ? and(...where) : undefined).orderBy(desc(orders.createdAt)).limit(51).offset((page - 1) * 50);
-  const hasMore = rows.length > 50;
+  const where = orderWhere(sp);
 
-  const qs = (extra: Record<string, string | undefined>) => {
-    const p = new URLSearchParams(Object.entries({ status: sp.status, q: sp.q, ...extra }).filter(([, v]) => v) as [string, string][]);
-    return p.toString() ? `?${p}` : '';
+  const [rows, [{ total }], statusCounts] = await Promise.all([
+    db.select().from(orders).where(where).orderBy(desc(orders.createdAt)).limit(PER_PAGE).offset((page - 1) * PER_PAGE),
+    db.select({ total: count() }).from(orders).where(where),
+    db.select({ status: orders.status, n: count() }).from(orders).where(orderWhere(sp, { ignoreStatus: true })).groupBy(orders.status),
+  ]);
+  const itemCounts = rows.length
+    ? await db.select({ orderId: orderItems.orderId, n: sql<number>`SUM(${orderItems.quantity})` }).from(orderItems).where(inArray(orderItems.orderId, rows.map((r) => r.id))).groupBy(orderItems.orderId)
+    : [];
+  const items = new Map(itemCounts.map((c) => [c.orderId, Number(c.n)]));
+  const counts = new Map(statusCounts.map((c) => [c.status, Number(c.n)]));
+  const tabCount = (k?: string) => k === undefined ? [...counts.values()].reduce((a, b) => a + b, 0)
+    : k === 'TO_CONFIRM' ? counts.get('PENDING') ?? 0
+      : k === 'TO_SHIP' ? (counts.get('CONFIRMED') ?? 0) + (counts.get('PROCESSING') ?? 0)
+        : counts.get(k as never) ?? 0;
+
+  const qs = (extra: Partial<OrderFilters>) => {
+    const p = new URLSearchParams(Object.entries({ status: sp.status, q: sp.q, from: sp.from, to: sp.to, pay: sp.pay, ...extra }).filter(([, v]) => v) as [string, string][]);
+    return p.size ? `?${p}` : '';
   };
+  const pages = Math.max(1, Math.ceil(Number(total) / PER_PAGE));
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <h1 className="font-display text-4xl uppercase">Orders</h1>
-        <form className="flex w-full gap-2 sm:w-auto">
-          {sp.status && <input type="hidden" name="status" value={sp.status} />}
-          <input name="q" defaultValue={sp.q} placeholder="Order no., phone or name" className="field min-w-0 flex-1 bg-white py-2 sm:w-64 sm:flex-none" />
-          <button className="btn btn-primary py-2">Search</button>
-        </form>
+    <div>
+      <PageHeader
+        title="Orders"
+        description={`${Number(total).toLocaleString()} order${Number(total) === 1 ? '' : 's'}${sp.q ? ` matching “${sp.q}”` : ''}`}
+        actions={<a href={`/admin/orders/export${qs({ page: undefined })}`} className="abtn abtn-outline"><AdminIcon name="download" className="h-4 w-4" /> Export CSV</a>}
+      />
+
+      <div className="mb-4 flex gap-1 overflow-x-auto border-b border-black/[0.06] scrollbar-none">
+        {TABS.map(([k, label]) => {
+          const active = (sp.status ?? undefined) === k;
+          return (
+            <Link key={label} href={`/admin/orders${qs({ status: k, page: undefined })}`} scroll={false}
+              className={`relative flex shrink-0 items-center gap-2 px-3 pb-3 pt-1 text-sm font-medium transition-colors ${active ? 'text-ink' : 'text-ink/50 hover:text-ink'}`}>
+              {label}
+              <span className={`rounded-full px-1.5 py-0.5 text-[0.65rem] tabular ${active ? 'bg-ink text-white' : 'bg-black/[0.05] text-ink/60'}`}>{tabCount(k)}</span>
+              {active && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-ink" />}
+            </Link>
+          );
+        })}
       </div>
-      <div className="flex flex-wrap gap-2 text-xs">
-        <Link href={`/admin/orders${qs({ status: undefined, page: undefined })}`} className={`border px-3 py-1.5 ${!sp.status ? 'border-ink bg-ink text-paper' : 'border-ink/20 bg-white'}`}>All</Link>
-        <Link href={`/admin/orders${qs({ status: 'TO_CONFIRM', page: undefined })}`} className={`border px-3 py-1.5 ${sp.status === 'TO_CONFIRM' ? 'border-ink bg-ink text-paper' : 'border-accent bg-accent/40'}`}>To confirm</Link>
-        {ORDER_STATUSES.map((s) => (
-          <Link key={s} href={`/admin/orders${qs({ status: s, page: undefined })}`} className={`border px-3 py-1.5 capitalize ${sp.status === s ? 'border-ink bg-ink text-paper' : 'border-ink/20 bg-white'}`}>{s.toLowerCase()}</Link>
-        ))}
-      </div>
-      <div className="admin-card overflow-x-auto p-0">
-        <table className="admin-table">
-          <thead><tr><th>Order</th><th>Date</th><th>Customer</th><th>Area</th><th>Status</th><th>Payment</th><th className="text-right">Total</th></tr></thead>
-          <tbody>
-            {rows.slice(0, 50).map((o) => (
-              <tr key={o.id} className="hover:bg-bone/40">
-                <td className="whitespace-nowrap"><Link className="font-medium underline" href={`/admin/orders/${o.id}`}>{o.number}</Link></td>
-                <td className="whitespace-nowrap text-xs">{o.createdAt.toLocaleString('en-GB', { timeZone: 'Asia/Dhaka', dateStyle: 'medium', timeStyle: 'short' })}</td>
-                <td>{o.customerName}<p className="text-xs text-muted">{o.phone}</p></td>
-                <td className="text-xs">{o.city}<p className="text-muted">{o.zone === 'inside_dhaka' ? 'Inside Dhaka' : 'Outside Dhaka'}</p></td>
-                <td><StatusBadge status={o.status} /></td>
-                <td className="text-xs">COD<br /><StatusBadge status={o.paymentStatus} /></td>
-                <td className="text-right tabular-nums">{formatBDT(o.total)}</td>
-              </tr>
-            ))}
-            {!rows.length && <tr><td colSpan={7} className="py-10 text-center text-muted">No orders found.</td></tr>}
-          </tbody>
-        </table>
-      </div>
-      <div className="flex gap-3 text-sm">
-        {page > 1 && <Link href={`/admin/orders${qs({ page: String(page - 1) })}`} className="underline">← Newer</Link>}
-        {hasMore && <Link href={`/admin/orders${qs({ page: String(page + 1) })}`} className="underline">Older →</Link>}
-      </div>
+
+      <form className="mb-4 flex flex-wrap items-end gap-2">
+        {sp.status && <input type="hidden" name="status" value={sp.status} />}
+        <div className="min-w-[14rem] flex-1"><label className="alabel" htmlFor="q">Search</label><input id="q" name="q" defaultValue={sp.q} placeholder="Order no., phone, name or city" className="ainput" /></div>
+        <div><label className="alabel" htmlFor="from">From</label><input id="from" name="from" type="date" defaultValue={sp.from} className="ainput" /></div>
+        <div><label className="alabel" htmlFor="to">To</label><input id="to" name="to" type="date" defaultValue={sp.to} className="ainput" /></div>
+        <div><label className="alabel" htmlFor="pay">Payment</label>
+          <select id="pay" name="pay" defaultValue={sp.pay ?? ''} className="aselect"><option value="">Any</option><option value="UNPAID">Unpaid</option><option value="PAID">Paid</option><option value="REFUNDED">Refunded</option></select>
+        </div>
+        <button className="abtn abtn-primary">Apply</button>
+        {(sp.q || sp.from || sp.to || sp.pay) && <Link href={`/admin/orders${qs({ q: undefined, from: undefined, to: undefined, pay: undefined, page: undefined })}`} className="abtn abtn-ghost">Clear</Link>}
+      </form>
+
+      <section className="admin-card p-0">
+        <OrdersTable
+          canManage={can(admin.role, 'orders.manage')}
+          rows={rows.map((o) => ({
+            id: o.id, number: o.number, when: fmtDateTime(o.createdAt), ago: timeAgo(o.createdAt), customer: o.customerName, phone: o.phone,
+            city: o.city, zone: o.zone === 'inside_dhaka' ? 'Inside Dhaka' : 'Outside Dhaka', items: items.get(o.id) ?? 0,
+            status: o.status, payment: o.paymentStatus, total: formatBDT(o.total),
+          }))}
+        />
+      </section>
+
+      {pages > 1 && (
+        <nav className="mt-4 flex items-center justify-between text-sm" aria-label="Pages">
+          <span className="text-ink/50">Page {page} of {pages}</span>
+          <div className="flex gap-2">
+            {page > 1 && <Link className="abtn abtn-outline abtn-sm" href={`/admin/orders${qs({ page: String(page - 1) })}`}>Newer</Link>}
+            {page < pages && <Link className="abtn abtn-outline abtn-sm" href={`/admin/orders${qs({ page: String(page + 1) })}`}>Older</Link>}
+          </div>
+        </nav>
+      )}
     </div>
   );
 }

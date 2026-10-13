@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { and, eq, inArray, lt, sql } from 'drizzle-orm';
 import { db, schema } from '@/db';
 import { getSettings, shippingFor } from './settings';
+import { recordMovement } from './inventory';
 import type { CheckoutInput } from './validation';
 
 const { orders, orderItems, variants, products, productImages } = schema;
@@ -34,7 +35,7 @@ export async function createOrder(input: CheckoutInput) {
   return db.transaction(async (tx) => {
     const rows = await tx
       .select({
-        variantId: variants.id, stock: variants.stock, color: variants.color, size: variants.size,
+        variantId: variants.id, stock: variants.stock, cost: variants.cost, color: variants.color, size: variants.size,
         productId: products.id, title: products.title, price: products.price, isActive: products.isActive,
       })
       .from(variants)
@@ -86,27 +87,57 @@ export async function createOrder(input: CheckoutInput) {
 
     await tx.insert(orderItems).values(lines.map((l) => ({
       orderId, productId: l.productId, variantId: l.variantId, title: l.title, options: l.options,
-      image: firstImage(l.productId), unitPrice: l.price, quantity: l.quantity,
+      image: firstImage(l.productId), unitPrice: l.price, unitCost: l.cost, quantity: l.quantity,
     })));
 
     for (const l of lines) {
       await tx.update(variants).set({ stock: sql`${variants.stock} - ${l.quantity}` }).where(eq(variants.id, l.variantId));
+      // The rows are locked (FOR UPDATE above), so the new balance is exact.
+      await recordMovement(tx, { variantId: l.variantId, productId: l.productId, change: -l.quantity, balanceAfter: l.stock - l.quantity, reason: 'SALE', orderId, note: number });
     }
+    await tx.insert(schema.orderEvents).values({ orderId, type: 'CREATED', message: 'Order placed on the website (cash on delivery)' });
 
     return { id: orderId, number, total, subtotal, shippingFee, lines };
   });
 }
 
-/** Puts reserved stock back (cancelled / failed / returned orders). Safe to call more than once. */
-export async function releaseStock(orderId: number) {
+/** Puts reserved stock back (cancelled / returned orders). Safe to call more than once. */
+export async function releaseStock(orderId: number, reason: 'CANCEL' | 'RETURN' = 'CANCEL', adminId: number | null = null) {
   await db.transaction(async (tx) => {
     const [o] = await tx.select().from(orders).where(eq(orders.id, orderId)).for('update');
     if (!o || o.stockReleased) return;
     const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
     for (const it of items) {
-      if (it.variantId) await tx.update(variants).set({ stock: sql`${variants.stock} + ${it.quantity}` }).where(eq(variants.id, it.variantId));
+      if (!it.variantId) continue;
+      const [v] = await tx.select().from(variants).where(eq(variants.id, it.variantId)).for('update');
+      if (!v) continue; // the variant was deleted since; nothing to put back
+      await tx.update(variants).set({ stock: v.stock + it.quantity }).where(eq(variants.id, v.id));
+      await recordMovement(tx, { variantId: v.id, productId: v.productId, change: it.quantity, balanceAfter: v.stock + it.quantity, reason, orderId, note: o.number, adminId });
     }
     await tx.update(orders).set({ stockReleased: true }).where(eq(orders.id, orderId));
+  });
+}
+
+/** Takes stock again when a cancelled or returned order is reopened. Fails without changes if anything is short. */
+export async function reserveStockAgain(orderId: number, adminId: number | null = null): Promise<string | null> {
+  return db.transaction(async (tx) => {
+    const [o] = await tx.select().from(orders).where(eq(orders.id, orderId)).for('update');
+    if (!o || !o.stockReleased) return null;
+    const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+    const locked = [];
+    for (const it of items) {
+      if (!it.variantId) continue;
+      const [v] = await tx.select().from(variants).where(eq(variants.id, it.variantId)).for('update');
+      if (!v) return `${it.title} (${it.options || 'item'}) no longer exists, so this order can't be reopened.`;
+      if (v.stock < it.quantity) return `Only ${v.stock} of ${it.title}${it.options ? ` (${it.options})` : ''} in stock, so this order can't be reopened.`;
+      locked.push({ v, it });
+    }
+    for (const { v, it } of locked) {
+      await tx.update(variants).set({ stock: v.stock - it.quantity }).where(eq(variants.id, v.id));
+      await recordMovement(tx, { variantId: v.id, productId: v.productId, change: -it.quantity, balanceAfter: v.stock - it.quantity, reason: 'SALE', orderId, note: `${o.number} reopened`, adminId });
+    }
+    await tx.update(orders).set({ stockReleased: false }).where(eq(orders.id, orderId));
+    return null;
   });
 }
 
@@ -117,8 +148,11 @@ export async function releaseStock(orderId: number) {
 async function loadOrder(where: ReturnType<typeof eq>) {
   const [o] = await db.select().from(orders).where(where).limit(1);
   if (!o) return null;
-  const items = await db.select().from(orderItems).where(eq(orderItems.orderId, o.id)).orderBy(orderItems.id);
-  return { ...o, items };
+  const [items, events] = await Promise.all([
+    db.select().from(orderItems).where(eq(orderItems.orderId, o.id)).orderBy(orderItems.id),
+    db.select().from(schema.orderEvents).where(eq(schema.orderEvents.orderId, o.id)).orderBy(schema.orderEvents.id),
+  ]);
+  return { ...o, items, events };
 }
 
 export const getOrderByNumber = (number: string) => loadOrder(eq(orders.number, number));

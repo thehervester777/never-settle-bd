@@ -1,5 +1,5 @@
 import {
-  mysqlTable, int, varchar, text, boolean, datetime, mysqlEnum, uniqueIndex, index,
+  mysqlTable, int, varchar, text, boolean, datetime, date, mysqlEnum, uniqueIndex, index,
 } from 'drizzle-orm/mysql-core';
 import { relations, sql } from 'drizzle-orm';
 
@@ -52,6 +52,7 @@ export const variants = mysqlTable('variants', {
   size: varchar('size', { length: 30 }),
   sku: varchar('sku', { length: 80 }),
   stock: int('stock').notNull().default(0),
+  cost: int('cost').notNull().default(0), // purchase cost per unit (poisha), for profit and inventory value
 }, (t) => [index('variants_product_idx').on(t.productId)]);
 
 export const ORDER_STATUSES = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'RETURNED'] as const;
@@ -76,6 +77,8 @@ export const orders = mysqlTable('orders', {
   shippingFee: int('shipping_fee').notNull(),
   total: int('total').notNull(),
   stockReleased: boolean('stock_released').notNull().default(false),
+  deliveredAt: datetime('delivered_at', { mode: 'date' }),
+  paidAt: datetime('paid_at', { mode: 'date' }),
   createdAt: createdAt(),
   updatedAt: datetime('updated_at', { mode: 'date' }).notNull().default(sql`CURRENT_TIMESTAMP`).$onUpdate(() => new Date()),
 }, (t) => [
@@ -93,6 +96,7 @@ export const orderItems = mysqlTable('order_items', {
   options: varchar('options', { length: 120 }).notNull().default(''),
   image: varchar('image', { length: 500 }),
   unitPrice: int('unit_price').notNull(),
+  unitCost: int('unit_cost').notNull().default(0), // the variant's cost when sold, so later cost changes don't rewrite past profit
   quantity: int('quantity').notNull(),
 }, (t) => [index('order_items_order_idx').on(t.orderId)]);
 
@@ -129,13 +133,72 @@ export const subscribers = mysqlTable('subscribers', {
   createdAt: createdAt(),
 }, (t) => [uniqueIndex('subscribers_email_uq').on(t.email)]);
 
+export const ADMIN_ROLES = ['OWNER', 'MANAGER', 'ACCOUNTANT', 'STAFF'] as const;
+export type AdminRole = (typeof ADMIN_ROLES)[number];
+
 export const admins = mysqlTable('admins', {
   id: int('id').autoincrement().primaryKey(),
   email: varchar('email', { length: 160 }).notNull(),
   name: varchar('name', { length: 120 }).notNull(),
   passwordHash: varchar('password_hash', { length: 100 }).notNull(),
+  role: varchar('role', { length: 20 }).$type<AdminRole>().notNull().default('OWNER'),
+  isActive: boolean('is_active').notNull().default(true),
+  lastLoginAt: datetime('last_login_at', { mode: 'date' }),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex('admins_email_uq').on(t.email)]);
+
+/* Every stock change, so inventory can be audited: sales, cancellations, restocks, corrections. */
+export const STOCK_REASONS = ['INITIAL', 'SALE', 'CANCEL', 'RETURN', 'RESTOCK', 'ADJUST', 'DAMAGE', 'COUNT'] as const;
+export type StockReason = (typeof STOCK_REASONS)[number];
+
+export const stockMovements = mysqlTable('stock_movements', {
+  id: int('id').autoincrement().primaryKey(),
+  variantId: int('variant_id').notNull(),
+  productId: int('product_id').notNull(),
+  change: int('change').notNull(),
+  balanceAfter: int('balance_after').notNull(),
+  reason: varchar('reason', { length: 20 }).$type<StockReason>().notNull(),
+  unitCost: int('unit_cost'),
+  orderId: int('order_id'),
+  note: varchar('note', { length: 255 }),
+  adminId: int('admin_id'),
+  createdAt: createdAt(),
+}, (t) => [index('stock_movements_variant_idx').on(t.variantId), index('stock_movements_created_idx').on(t.createdAt)]);
+
+export const EXPENSE_CATEGORIES = ['Stock purchase', 'Courier & delivery', 'Marketing & ads', 'Packaging', 'Rent', 'Salaries', 'Utilities & internet', 'Platform & software', 'Other'] as const;
+
+export const expenses = mysqlTable('expenses', {
+  id: int('id').autoincrement().primaryKey(),
+  spentOn: date('spent_on', { mode: 'string' }).notNull(),
+  category: varchar('category', { length: 40 }).notNull(),
+  description: varchar('description', { length: 255 }).notNull().default(''),
+  amount: int('amount').notNull(),
+  adminId: int('admin_id'),
+  createdAt: createdAt(),
+}, (t) => [index('expenses_spent_idx').on(t.spentOn)]);
+
+/* Order timeline: placed, status and payment changes, notes. */
+export const orderEvents = mysqlTable('order_events', {
+  id: int('id').autoincrement().primaryKey(),
+  orderId: int('order_id').notNull(),
+  type: varchar('type', { length: 20 }).notNull(), // CREATED | STATUS | PAYMENT | NOTE
+  message: varchar('message', { length: 255 }).notNull(),
+  adminId: int('admin_id'),
+  adminName: varchar('admin_name', { length: 120 }),
+  createdAt: createdAt(),
+}, (t) => [index('order_events_order_idx').on(t.orderId)]);
+
+/* Who did what in the admin panel. The name is copied so the log survives removed accounts. */
+export const activityLog = mysqlTable('activity_log', {
+  id: int('id').autoincrement().primaryKey(),
+  adminId: int('admin_id'),
+  adminName: varchar('admin_name', { length: 120 }).notNull(),
+  action: varchar('action', { length: 60 }).notNull(),
+  entity: varchar('entity', { length: 30 }).notNull(),
+  entityId: varchar('entity_id', { length: 40 }),
+  summary: varchar('summary', { length: 255 }).notNull(),
+  createdAt: createdAt(),
+}, (t) => [index('activity_log_created_idx').on(t.createdAt)]);
 
 export const settings = mysqlTable('settings', {
   key: varchar('key', { length: 60 }).primaryKey(),

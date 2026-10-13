@@ -5,6 +5,8 @@ import { z } from 'zod';
 import { db, schema } from '@/db';
 import { adminCount, hashPassword, startSession } from '@/lib/auth';
 import { rateLimit } from '@/lib/rate-limit';
+import { logActivity } from '@/lib/activity';
+import { AuthLayout } from '@/components/admin/AuthLayout';
 
 export const metadata: Metadata = { title: 'Create admin account', robots: { index: false } };
 export const dynamic = 'force-dynamic';
@@ -33,8 +35,10 @@ async function createFirstAdmin(formData: FormData) {
   const passwordHash = await hashPassword(password);
   // Re-check right before writing so two people can't both claim the store.
   if ((await adminCount()) > 0) redirect('/admin/login');
-  const [res] = await db.insert(schema.admins).values({ name, email, passwordHash });
-  await startSession({ id: Number(res.insertId), email, name });
+  const [res] = await db.insert(schema.admins).values({ name, email, passwordHash, role: 'OWNER', lastLoginAt: new Date() });
+  const id = Number(res.insertId);
+  await startSession({ id });
+  await logActivity({ id, name, email, role: 'OWNER' }, 'auth.setup', 'admin', id, 'Created the store owner account');
   redirect('/admin');
 }
 
@@ -50,20 +54,15 @@ export default async function AdminSetup({ searchParams }: { searchParams: Promi
   if ((await adminCount()) > 0) redirect('/admin/login');
   const { e } = await searchParams;
   return (
-    <main className="grid min-h-screen place-items-center bg-ink p-6">
-      <form action={createFirstAdmin} className="w-full max-w-md bg-paper p-8">
-        <p className="font-display text-3xl uppercase">NEVER SETTLE</p>
-        <p className="eyebrow mt-1 text-muted">Welcome. Create your admin account</p>
-        <p className="mt-4 text-sm text-muted">This page only works once, before any admin exists. Do it right after your site goes up.</p>
-        {e && <p className="mt-6 bg-sale/10 p-3 text-sm text-sale" role="alert">{MESSAGES[e] ?? 'Please check the form and try again.'}</p>}
-        <div className="mt-6 space-y-4">
-          <div><label htmlFor="name" className="label">Your name</label><input id="name" name="name" required autoComplete="name" className="field" /></div>
-          <div><label htmlFor="email" className="label">Email</label><input id="email" name="email" type="email" required autoComplete="username" className="field" /></div>
-          <div><label htmlFor="password" className="label">Password (min 10 characters)</label><input id="password" name="password" type="password" required minLength={10} autoComplete="new-password" className="field" /></div>
-          <div><label htmlFor="confirm" className="label">Confirm password</label><input id="confirm" name="confirm" type="password" required minLength={10} autoComplete="new-password" className="field" /></div>
-          <button className="btn btn-primary w-full">Create account</button>
-        </div>
+    <AuthLayout title="Create your owner account" subtitle="This page works only once, before any admin exists. Do it right after your site goes up.">
+      {e && <p className="mt-6 rounded-xl bg-red-50 p-3 text-sm text-red-700 ring-1 ring-inset ring-red-200" role="alert">{MESSAGES[e] ?? 'Please check the form and try again.'}</p>}
+      <form action={createFirstAdmin} className="mt-6 space-y-4">
+        <div><label htmlFor="name" className="alabel">Your name</label><input id="name" name="name" required autoComplete="name" className="ainput" /></div>
+        <div><label htmlFor="email" className="alabel">Email</label><input id="email" name="email" type="email" required autoComplete="username" className="ainput" /></div>
+        <div><label htmlFor="password" className="alabel">Password (at least 10 characters)</label><input id="password" name="password" type="password" required minLength={10} autoComplete="new-password" className="ainput" /></div>
+        <div><label htmlFor="confirm" className="alabel">Confirm password</label><input id="confirm" name="confirm" type="password" required minLength={10} autoComplete="new-password" className="ainput" /></div>
+        <button className="abtn abtn-primary w-full py-3">Create account</button>
       </form>
-    </main>
+    </AuthLayout>
   );
 }

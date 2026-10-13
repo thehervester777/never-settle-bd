@@ -4,7 +4,7 @@ A complete, self-hosted fashion store for T-shirts, pants, punjabis, kurtas, sho
 
 - **Shop:** home page with animations, collections with filters and sorting, product pages with sizes/colours and stock, search, cart, checkout, order tracking, contact, FAQ, size guide, policies.
 - **Payments:** Cash on delivery across Bangladesh.
-- **Admin panel** at `/admin`: orders (confirm, ship, cancel, refund), products (photos, prices, sizes, stock), messages, delivery charges, announcement bar, contact details and more.
+- **Admin panel** at `/admin`: sales dashboard with charts, orders (bulk actions, timeline, CSV export), printable invoices and packing slips, customers, products, inventory with stock history and stock value, profit & loss, expenses, cash transactions, team members with roles, activity log and store settings.
 - **Safe by design:** prices, stock and delivery charges are always recalculated on the server; stock is reserved when an order is placed and returned if it is cancelled or returned.
 
 Built with Next.js 15, React 19, Tailwind CSS, Framer Motion and MySQL / MariaDB.
@@ -111,11 +111,39 @@ The store takes **cash on delivery** only. Mark an order *Paid* in **Admin → O
 
 ## Running the store day to day
 
-- **New orders:** Admin → Dashboard shows orders *waiting for confirmation*.
-- **Order status:** Pending → Confirmed → Processing → Shipped → Delivered. Choosing **Cancelled** or **Returned** puts the stock back automatically.
-- **Cash on delivery:** mark the order **Paid** when the courier settles.
-- **Products:** upload photos (JPG, PNG or WebP, up to 4 MB), set price, "compare at" price (shows a sale badge), sizes, colours and stock per size/colour. Untick **Visible in store** to hide a product without deleting it.
+Everything lives in the admin panel at `/admin`:
+
+| Area | What it does |
+|---|---|
+| **Dashboard** | Sales, orders, average order and gross profit for 7/30/90 days or 12 months (vs the previous period), sales chart, open-order pipeline, best sellers, top cities, low stock, recent orders and team activity. |
+| **Orders** | Tabs (to confirm, to ship, shipped…), search, date and payment filters, CSV export. Tick several orders to confirm, ship, deliver, mark cash received, cancel or print invoices in one go. Each order has a progress tracker, one-click next step, profit on the order, and a timeline of every change with notes. |
+| **Invoices** | Every order has an invoice (INV-order number). Print invoices and packing slips one by one or many at once (A4, or *Save as PDF*). Shows what's invoiced, collected and still with couriers. |
+| **Customers** | Everyone who ordered, grouped by phone: orders, lifetime value, new/repeat/VIP, and a profile page with their history. |
+| **Products** | Photos, prices, sizes/colours, stock and the **cost** you pay per unit (so margins show). |
+| **Inventory** | Stock per size/colour, stock value at cost, low/sold-out filters, CSV export. **Adjust** a line to restock (with the purchase price; the cost becomes the weighted average), remove damaged units or enter a stock count. **Stock history** lists every change: sales, cancellations, returns, restocks, edits, with who did it. |
+| **Profit & loss** | Revenue (counted when an order is delivered), cost of goods, gross profit, expenses by category and net profit for any period, monthly charts, CSV export. |
+| **Expenses** | Rent, salaries, ads, courier charges, packaging… add them here so profit is real. |
+| **Transactions** | Money in (cash collected from couriers) and out (expenses, refunds) with a running balance. |
+| **Team & roles** | Add people and choose their role. Reset passwords or turn accounts off (they're signed out immediately). |
+| **Activity log** | Who did what: sign-ins, order changes, stock changes, edits. |
+
+**Roles**
+
+| Role | Can |
+|---|---|
+| Owner | Everything, including team members and profit. |
+| Manager | Orders, products, inventory, customers, messages, settings. No profit reports or team. |
+| Accountant | Profit & loss, expenses, transactions, invoices, sales figures; can view orders but not change them. |
+| Staff | Confirm/ship orders, record cash, print invoices, restock, messages. Sees no money figures or costs. |
+
+Tips:
+- **Cash on delivery:** when the courier pays you, open the order and click **Cash received from courier** (or tick many orders → *Cash received*). That records the money in Transactions.
+- **Cancelled or Returned** puts the stock back automatically; reopening the order takes it again.
+- Add a **cost** to each product (Products → product → Cost) or when restocking, otherwise profit counts those items as free. Inventory shows a warning for items without a cost.
 - **Customers** can find their order at `/track` with their order number and phone number.
+
+### Updating to a new version
+Upload the new files over the old ones (keep your `.env` and the `uploads` folder), click **Run NPM Install**, then **Restart**. The database updates itself the first time the site runs: new tables and columns are added and nothing is deleted. Your database user needs **ALL PRIVILEGES** for that (it already has them if you followed step 1). Check `/api/health` afterwards.
 
 ### Changing site photos and text
 - Hero, story and banner photos: replace `public/images/hero-1.jpg`, `hero-2.jpg`, `story.jpg`, `banner.jpg` (landscape, about 1800 px wide), and the category photos in `public/images/categories/` (portrait 4:5). Keep the same file names, then Restart.
