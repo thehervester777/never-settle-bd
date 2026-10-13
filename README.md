@@ -146,7 +146,9 @@ Tips:
 Upload the new files over the old ones (keep your `.env` and the `uploads` folder), click **Run NPM Install**, then **Restart**. The database updates itself the first time the site runs: new tables and columns are added and nothing is deleted. Your database user needs **ALL PRIVILEGES** for that (it already has them if you followed step 1). Check `/api/health` afterwards.
 
 ### Changing site photos and text
-- Hero, story and banner photos: replace `public/images/hero-1.jpg`, `hero-2.jpg`, `story.jpg`, `banner.jpg` (landscape, about 1800 px wide), and the category photos in `public/images/categories/` (portrait 4:5). Keep the same file names, then Restart.
+- **Homepage slider: Admin → Homepage slider.** Add, edit, hide, reorder or delete slides. Each slide is a **picture** (JPG/PNG/WebP, landscape, at least 1920 × 1080, up to 10 MB) or a **video** (MP4 or WebM, 10–20 seconds, up to 60 MB; it plays muted and the next slide follows when it ends), with an optional separate portrait version for phones, a cover picture for videos, a heading, text and up to two buttons. iPhone `.MOV` videos need converting to MP4 first. Uploads are saved in the `uploads` folder, so keep that folder when you update.
+  - If big video uploads fail on your hosting, upload the video somewhere else (e.g. your hosting's File Manager) and use **Paste a link instead**.
+- Story and banner photos: replace `public/images/story.jpg`, `banner.jpg` (landscape, about 1800 px wide), and the category photos in `public/images/categories/` (portrait 4:5). Keep the same file names, then Restart.
 - Phone, email, address, social links, delivery charges, free-delivery threshold and the announcement bar: **Admin → Settings**.
 - Policy pages (returns, shipping, privacy, terms): edit `src/app/(store)/policies/[slug]/page.tsx`, then rebuild.
 

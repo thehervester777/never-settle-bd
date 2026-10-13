@@ -200,6 +200,28 @@ export const activityLog = mysqlTable('activity_log', {
   createdAt: createdAt(),
 }, (t) => [index('activity_log_created_idx').on(t.createdAt)]);
 
+/* Homepage slider. Each slide is a picture or a video, optionally with a separate one for phones. */
+export const SLIDE_MEDIA = ['IMAGE', 'VIDEO'] as const;
+export type SlideMedia = (typeof SLIDE_MEDIA)[number];
+
+export const homeSlides = mysqlTable('home_slides', {
+  id: int('id').autoincrement().primaryKey(),
+  sortOrder: int('sort_order').notNull().default(0),
+  isActive: boolean('is_active').notNull().default(true),
+  mediaType: varchar('media_type', { length: 10 }).$type<SlideMedia>().notNull().default('IMAGE'),
+  mediaUrl: varchar('media_url', { length: 500 }).notNull(),
+  mobileMediaUrl: varchar('mobile_media_url', { length: 500 }),
+  posterUrl: varchar('poster_url', { length: 500 }), // still picture shown while a video loads
+  eyebrow: varchar('eyebrow', { length: 80 }).notNull().default(''),
+  heading: varchar('heading', { length: 120 }).notNull().default(''), // a new line in the text = a new line on screen
+  text: varchar('text', { length: 300 }).notNull().default(''),
+  ctaLabel: varchar('cta_label', { length: 60 }).notNull().default(''),
+  ctaHref: varchar('cta_href', { length: 300 }).notNull().default(''),
+  cta2Label: varchar('cta2_label', { length: 60 }).notNull().default(''),
+  cta2Href: varchar('cta2_href', { length: 300 }).notNull().default(''),
+  createdAt: createdAt(),
+}, (t) => [index('home_slides_order_idx').on(t.sortOrder)]);
+
 export const settings = mysqlTable('settings', {
   key: varchar('key', { length: 60 }).primaryKey(),
   value: text('value').notNull(),

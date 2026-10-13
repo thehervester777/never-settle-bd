@@ -1,9 +1,11 @@
 import { Hero } from '@/components/home/Hero';
 import { Banner, CategoryTiles, Marquee, ProductRow, PromiseSection, Story } from '@/components/home/Sections';
 import { getCategories, listProducts } from '@/lib/catalog';
+import { getSlides } from '@/lib/home';
 
 export default async function HomePage() {
-  const [newIn, featured, categories, all] = await Promise.all([
+  const [slides, newIn, featured, categories, all] = await Promise.all([
+    getSlides(),
     listProducts({ category: 'new-in', sort: 'newest', limit: 4 }),
     listProducts({ featured: true, limit: 4 }),
     getCategories(),
@@ -13,20 +15,7 @@ export default async function HomePage() {
 
   return (
     <>
-      <Hero
-        slides={[
-          {
-            image: '/images/hero-1.jpg', eyebrow: 'New season', heading: 'Never\nSettle',
-            text: 'T-shirts, pants and punjabis cut for everyday Dhaka, plus shoes and wallets to finish the look.',
-            cta: { label: 'Shop new arrivals', href: '/collections/new-in' }, cta2: { label: 'Shop punjabis', href: '/collections/punjabis' },
-          },
-          {
-            image: '/images/hero-2.jpg', eyebrow: 'Punjabi season', heading: 'Punjabi\nSeason',
-            text: 'Festive punjabis and kurtas in breathable cotton and soft linen blends.',
-            cta: { label: 'Shop the edit', href: '/collections/punjabis' },
-          },
-        ]}
-      />
+      {slides.length > 0 ? <Hero slides={slides} /> : <h1 className="sr-only">{process.env.NEXT_PUBLIC_STORE_NAME || 'NEVER SETTLE'}</h1>}
       <Marquee items={['T-shirts', 'Pants', 'Punjabis', 'Kurtas', 'Shoes', 'Wallets']} />
       {newIn.length > 0 && <ProductRow eyebrow="Just landed" heading="New arrivals" products={newIn} href="/collections/new-in" />}
       <CategoryTiles categories={categories.map((c) => ({ name: c.name, slug: c.slug, image: c.image, count: counts(c.slug) }))} />

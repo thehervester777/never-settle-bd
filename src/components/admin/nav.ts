@@ -32,6 +32,7 @@ export const NAV: NavGroup[] = [
     label: 'Store',
     items: [
       { href: '/admin/messages', label: 'Messages', icon: 'messages', perm: 'messages', badge: 'unread' },
+      { href: '/admin/homepage', label: 'Homepage slider', icon: 'slides', perm: 'settings' },
       { href: '/admin/settings', label: 'Settings', icon: 'settings', perm: 'settings' },
     ],
   },

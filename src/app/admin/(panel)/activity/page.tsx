@@ -10,7 +10,7 @@ export const metadata = { title: 'Activity log' };
 
 const AREAS: [string, string, string][] = [
   ['all', 'Everything', 'activity'], ['order', 'Orders', 'orders'], ['product', 'Products', 'products'], ['variant', 'Stock', 'inventory'],
-  ['expense', 'Expenses', 'expenses'], ['admin', 'Team & sign-ins', 'team'], ['settings', 'Settings', 'settings'],
+  ['expense', 'Expenses', 'expenses'], ['slide', 'Homepage', 'slides'], ['admin', 'Team & sign-ins', 'team'], ['settings', 'Settings', 'settings'],
 ];
 const ICON: Record<string, string> = Object.fromEntries(AREAS.map(([k, , i]) => [k, i]));
 const PER_PAGE = 50;

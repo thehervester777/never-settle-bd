@@ -58,6 +58,25 @@ export const NEW_TABLES: Record<string, string> = {
   CONSTRAINT \`order_events_id\` PRIMARY KEY(\`id\`),
   INDEX \`order_events_order_idx\` (\`order_id\`)
 ) ${TABLE_OPTIONS}`,
+  home_slides: `CREATE TABLE IF NOT EXISTS \`home_slides\` (
+  \`id\` int AUTO_INCREMENT NOT NULL,
+  \`sort_order\` int NOT NULL DEFAULT 0,
+  \`is_active\` boolean NOT NULL DEFAULT true,
+  \`media_type\` varchar(10) NOT NULL DEFAULT 'IMAGE',
+  \`media_url\` varchar(500) NOT NULL,
+  \`mobile_media_url\` varchar(500),
+  \`poster_url\` varchar(500),
+  \`eyebrow\` varchar(80) NOT NULL DEFAULT '',
+  \`heading\` varchar(120) NOT NULL DEFAULT '',
+  \`text\` varchar(300) NOT NULL DEFAULT '',
+  \`cta_label\` varchar(60) NOT NULL DEFAULT '',
+  \`cta_href\` varchar(300) NOT NULL DEFAULT '',
+  \`cta2_label\` varchar(60) NOT NULL DEFAULT '',
+  \`cta2_href\` varchar(300) NOT NULL DEFAULT '',
+  \`created_at\` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT \`home_slides_id\` PRIMARY KEY(\`id\`),
+  INDEX \`home_slides_order_idx\` (\`sort_order\`)
+) ${TABLE_OPTIONS}`,
   activity_log: `CREATE TABLE IF NOT EXISTS \`activity_log\` (
   \`id\` int AUTO_INCREMENT NOT NULL,
   \`admin_id\` int,
@@ -71,6 +90,12 @@ export const NEW_TABLES: Record<string, string> = {
   INDEX \`activity_log_created_idx\` (\`created_at\`)
 ) ${TABLE_OPTIONS}`,
 };
+
+/** Starting rows for a table created by the upgrade: the homepage slides that used to be fixed in the code. */
+export const DEFAULT_SLIDES_SQL = `INSERT INTO \`home_slides\` (\`sort_order\`, \`media_type\`, \`media_url\`, \`eyebrow\`, \`heading\`, \`text\`, \`cta_label\`, \`cta_href\`, \`cta2_label\`, \`cta2_href\`) VALUES
+  (1, 'IMAGE', '/images/hero-1.jpg', 'New season', 'Never\\nSettle', 'T-shirts, pants and punjabis cut for everyday Dhaka, plus shoes and wallets to finish the look.', 'Shop new arrivals', '/collections/new-in', 'Shop punjabis', '/collections/punjabis'),
+  (2, 'IMAGE', '/images/hero-2.jpg', 'Punjabi season', 'Punjabi\\nSeason', 'Festive punjabis and kurtas in breathable cotton and soft linen blends.', 'Shop the edit', '/collections/punjabis', '', '')`;
+const SEEDS: Record<string, string> = { home_slides: DEFAULT_SLIDES_SQL };
 
 const DUPLICATE_COLUMN = 1060; // another server process added it a moment ago
 
@@ -86,6 +111,7 @@ export async function migrate(pool: Pool): Promise<MigrationStatus> {
   for (const [table, ddl] of Object.entries(NEW_TABLES)) {
     if (tables.has(table)) continue;
     await pool.query(ddl);
+    if (SEEDS[table]) await pool.query(SEEDS[table]);
     applied.push(`table ${table}`);
   }
   for (const [table, column, definition] of COLUMNS) {
