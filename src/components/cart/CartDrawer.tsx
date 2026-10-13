@@ -42,14 +42,14 @@ export function CartDrawer({ freeShippingThreshold, paymentMethods }: { freeShip
             <AnimatePresence initial={false}>
               {lines.map((l) => (
                 <motion.li key={l.variantId} layout initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.4, ease: EASE }} className="flex gap-4 py-5">
-                  <Link href={`/products/${l.slug}`} onClick={close} className="relative block w-24 shrink-0 overflow-hidden bg-bone" style={{ aspectRatio: '4 / 5' }}>
+                  <Link href={`/products/${l.slug}`} scroll={false} onClick={close} className="relative block w-24 shrink-0 overflow-hidden bg-bone" style={{ aspectRatio: '4 / 5' }}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     {l.image && <img src={l.image} alt={l.title} className="absolute inset-0 h-full w-full object-cover" />}
                   </Link>
                   <div className="flex min-w-0 flex-1 flex-col">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <Link href={`/products/${l.slug}`} onClick={close} className="text-sm font-medium leading-snug hover:underline">{l.title}</Link>
+                        <Link href={`/products/${l.slug}`} scroll={false} onClick={close} className="text-sm font-medium leading-snug hover:underline">{l.title}</Link>
                         {l.options && <p className="mt-1 text-xs text-muted">{l.options}</p>}
                       </div>
                       <p className="text-right text-sm font-semibold">{formatBDT(l.price * l.quantity)}</p>

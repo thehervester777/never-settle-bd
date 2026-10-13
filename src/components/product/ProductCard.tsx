@@ -27,7 +27,8 @@ export function ProductCard({ product, priority = false }: { product: Card; prio
   return (
     <article className="group relative flex flex-col">
       <div className="relative">
-        <Link href={`/products/${product.slug}`} className="relative block overflow-hidden bg-bone" style={{ aspectRatio: '4 / 5' }} aria-label={product.title}>
+        {/* scroll={false}: the product opens over this page (see ProductOverlay), so the list must stay where it is */}
+        <Link href={`/products/${product.slug}`} scroll={false} className="relative block overflow-hidden bg-bone" style={{ aspectRatio: '4 / 5' }} aria-label={product.title}>
           {a ? (
             <>
               {b && (
@@ -68,7 +69,7 @@ export function ProductCard({ product, priority = false }: { product: Card; prio
                 </div>
               </>
             ) : (
-              <Link href={`/products/${product.slug}`} className="btn btn-primary w-full py-3">Choose options</Link>
+              <Link href={`/products/${product.slug}`} scroll={false} className="btn btn-primary w-full py-3">Choose options</Link>
             )}
           </div>
         )}
@@ -76,7 +77,7 @@ export function ProductCard({ product, priority = false }: { product: Card; prio
 
       <div className="flex flex-1 flex-col gap-1.5 pt-3.5">
         <h3 className="text-sm font-medium leading-snug">
-          <Link href={`/products/${product.slug}`} className="link-underline">{product.title}</Link>
+          <Link href={`/products/${product.slug}`} scroll={false} className="link-underline">{product.title}</Link>
         </h3>
         <p className="flex items-baseline gap-2 text-sm">
           <span className={`font-semibold ${onSale ? 'text-sale' : ''}`}>{formatBDT(product.price)}</span>

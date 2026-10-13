@@ -7,7 +7,7 @@ import { getSettings } from '@/lib/settings';
 
 export const dynamic = 'force-dynamic';
 
-export default async function StoreLayout({ children }: { children: React.ReactNode }) {
+export default async function StoreLayout({ children, modal }: { children: React.ReactNode; modal: React.ReactNode }) {
   const [categories, settings] = await Promise.all([getCategories().catch(() => []), getSettings()]);
   const cats = categories.map((c) => ({ name: c.name, slug: c.slug }));
   const paymentMethods = settings.paymentLabels.split(',').map((s) => s.trim()).filter(Boolean);
@@ -17,6 +17,8 @@ export default async function StoreLayout({ children }: { children: React.ReactN
       <Header categories={cats} announcements={settings.announcement.split('|').map((s) => s.trim()).filter(Boolean)} />
       <main id="main" className="min-h-[60vh]">{children}</main>
       <Footer settings={settings} categories={cats} paymentMethods={paymentMethods} />
+      {/* A product clicked in the store opens as a full-screen overlay (see @modal) */}
+      {modal}
       <CartDrawer freeShippingThreshold={settings.freeShippingThreshold} paymentMethods={paymentMethods} />
     </CartProvider>
   );

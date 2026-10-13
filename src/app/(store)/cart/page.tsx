@@ -22,13 +22,13 @@ export default function CartPage() {
           <ul className="divide-y divide-ink/10 border-y border-ink/10 lg:col-span-8">
             {lines.map((l) => (
               <li key={l.variantId} className="flex gap-4 py-5">
-                <Link href={`/products/${l.slug}`} className="relative block w-24 shrink-0 overflow-hidden bg-bone md:w-32" style={{ aspectRatio: '4 / 5' }}>
+                <Link href={`/products/${l.slug}`} scroll={false} className="relative block w-24 shrink-0 overflow-hidden bg-bone md:w-32" style={{ aspectRatio: '4 / 5' }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   {l.image && <img src={l.image} alt={l.title} className="absolute inset-0 h-full w-full object-cover" />}
                 </Link>
                 <div className="flex min-w-0 flex-1 flex-col">
                   <div className="flex items-start justify-between gap-3">
-                    <div><Link href={`/products/${l.slug}`} className="text-sm font-medium hover:underline">{l.title}</Link>{l.options && <p className="mt-1 text-xs text-muted">{l.options}</p>}<p className="mt-1 text-xs text-muted">{formatBDT(l.price)} each</p></div>
+                    <div><Link href={`/products/${l.slug}`} scroll={false} className="text-sm font-medium hover:underline">{l.title}</Link>{l.options && <p className="mt-1 text-xs text-muted">{l.options}</p>}<p className="mt-1 text-xs text-muted">{formatBDT(l.price)} each</p></div>
                     <p className="text-sm font-semibold">{formatBDT(l.price * l.quantity)}</p>
                   </div>
                   <div className="mt-auto flex items-center justify-between pt-3">
