@@ -99,7 +99,6 @@ export default async function PrintPage({ searchParams }: { searchParams: Promis
                   </div>
                   <dl className="w-64 space-y-1.5">
                     <div className="flex justify-between"><dt className="text-ink/55">Subtotal</dt><dd className="tabular">{formatBDT(o.subtotal)}</dd></div>
-                    {o.discount > 0 && <div className="flex justify-between"><dt className="text-ink/55">Discount{o.couponCode ? ` (${o.couponCode})` : ''}</dt><dd className="tabular">−{formatBDT(o.discount)}</dd></div>}
                     <div className="flex justify-between"><dt className="text-ink/55">Delivery</dt><dd className="tabular">{o.shippingFee ? formatBDT(o.shippingFee) : 'Free'}</dd></div>
                     <div className="flex justify-between border-t-2 border-ink pt-2 text-base font-semibold"><dt>Total</dt><dd className="tabular">{formatBDT(o.total)}</dd></div>
                     <div className="flex justify-between text-ink/60"><dt>Paid</dt><dd className="tabular">{formatBDT(paid ? o.total : 0)}</dd></div>

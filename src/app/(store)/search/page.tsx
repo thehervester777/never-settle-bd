@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { listProducts } from '@/lib/catalog';
 import { ProductCard } from '@/components/product/ProductCard';
 import { Stagger, StaggerItem } from '@/components/motion/Reveal';
-import { SearchTracker } from '@/components/marketing/Trackers';
 
 export const metadata: Metadata = { title: 'Search', robots: { index: false } };
 
@@ -11,7 +10,6 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const results = q ? await listProducts({ q }) : [];
   return (
     <section className="container pb-24 pt-10 md:pt-16">
-      {q && <SearchTracker query={q} />}
       <h1 className="font-display text-display-lg uppercase">{q ? `Results for “${q}”` : 'Search'}</h1>
       <form action="/search" className="relative mt-8 max-w-2xl" role="search">
         <label htmlFor="q" className="sr-only">Search products</label>

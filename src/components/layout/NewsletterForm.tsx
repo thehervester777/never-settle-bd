@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
-import { trackLead } from '@/lib/track';
 
 export function NewsletterForm() {
   const [state, setState] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
@@ -14,7 +13,7 @@ export function NewsletterForm() {
     setState('sending');
     const res = await fetch('/api/newsletter', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
     const data = await res.json().catch(() => ({}));
-    if (res.ok) { setState('done'); trackLead('newsletter'); }
+    if (res.ok) setState('done');
     else { setState('error'); setMsg(data.error || 'Something went wrong. Please try again.'); }
   }
 

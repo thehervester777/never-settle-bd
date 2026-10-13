@@ -13,7 +13,7 @@ export const metadata = { title: 'Team & roles' };
 const AREAS: [Permission, string][] = [
   ['orders.view', 'See orders'], ['orders.manage', 'Confirm, ship, cancel orders & record cash'], ['invoices', 'Print invoices & packing slips'],
   ['customers', 'Customers'], ['products', 'Add & edit products'], ['inventory', 'Inventory & restocking'], ['costs', 'See purchase costs & margins'],
-  ['sales', 'See sales figures'], ['finance', 'Profit & loss, expenses, transactions'], ['marketing', 'Campaigns, ad spend, discount codes, pixels'], ['messages', 'Customer messages'],
+  ['sales', 'See sales figures'], ['finance', 'Profit & loss, expenses, transactions'], ['messages', 'Customer messages'],
   ['settings', 'Store settings'], ['activity', 'Activity log'], ['users', 'Manage team & roles'],
 ];
 

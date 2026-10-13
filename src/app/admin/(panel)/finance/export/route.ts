@@ -14,7 +14,7 @@ export async function GET(req: Request) {
   const rows: (string | number)[][] = [
     ['Period', `${range.from} to ${range.to}`],
     [],
-    ['Product sales', t(pl.merch)], ['Discount codes', -t(pl.discounts)], ['Delivery charges', t(pl.shipping)], ['Total revenue', t(pl.revenue)],
+    ['Product sales', t(pl.merch)], ['Delivery charges', t(pl.shipping)], ['Total revenue', t(pl.revenue)],
     ['Cost of goods sold', -t(pl.cogs)], ['Gross profit', t(pl.gross)], ['Gross margin %', +(pl.grossMargin * 100).toFixed(2)],
     [],
     ...pl.expenses.map((e) => [`Expense: ${e.category}`, -t(e.total)]),

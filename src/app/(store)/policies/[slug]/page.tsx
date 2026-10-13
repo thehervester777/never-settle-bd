@@ -1,19 +1,8 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { getSettings, type StoreSettings } from '@/lib/settings';
+import { getSettings } from '@/lib/settings';
 
-/** Names the ad and analytics tools that are actually switched on. */
-function trackingTools(s: StoreSettings) {
-  const tools = [
-    s.metaPixelId && 'Meta (Facebook and Instagram) Pixel and Conversions API',
-    s.tiktokPixelId && 'TikTok Pixel',
-    s.ga4Id && 'Google Analytics',
-    s.googleAdsId && 'Google Ads',
-  ].filter(Boolean) as string[];
-  return tools.length ? tools.join(', ') : 'advertising and analytics tools';
-}
-
-type Policy = { title: string; body: (s: StoreSettings) => string };
+type Policy = { title: string; body: (s: { email: string; phone: string }) => string };
 
 /* Starting templates. Have them reviewed for your business before launch. */
 const POLICIES: Record<string, Policy> = {
@@ -40,10 +29,6 @@ const POLICIES: Record<string, Policy> = {
     body: (s) => `
       <p>We collect only what we need to deliver your order: your name, phone number, delivery address and, if you give it, your email.</p>
       <p>We share your delivery details only with our courier partner for that order. We do not sell your data.</p>
-      <h2>Cookies, ads and analytics</h2>
-      <p>We use cookies and similar technology to keep your cart, remember which ad or link brought you here, and measure how our ads perform. For this we use ${trackingTools(s)}. These services may record the pages you view and the products you add to your cart or buy.</p>
-      <p>When you place an order, we may send a scrambled (hashed) copy of your phone number, email, name and city to these advertising partners so they can match the purchase to an ad, without receiving the details in readable form.</p>
-      <p>You can block or delete cookies in your browser settings, and manage ad preferences in your Facebook, Instagram, TikTok and Google account settings.</p>
       <p>To see or delete the information we hold about you, contact ${s.email}.</p>`,
   },
   terms: {

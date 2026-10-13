@@ -9,7 +9,6 @@ import { orderWhere, type OrderFilters } from '@/lib/order-filters';
 import { OrdersTable } from '@/components/admin/OrdersTable';
 import { PageHeader } from '@/components/admin/ui';
 import { AdminIcon } from '@/components/admin/AdminIcon';
-import { sourceLabel } from '@/lib/attribution';
 
 export const metadata = { title: 'Orders' };
 const PER_PAGE = 30;
@@ -41,7 +40,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
         : counts.get(k as never) ?? 0;
 
   const qs = (extra: Partial<OrderFilters>) => {
-    const p = new URLSearchParams(Object.entries({ status: sp.status, q: sp.q, from: sp.from, to: sp.to, pay: sp.pay, source: sp.source, campaign: sp.campaign, coupon: sp.coupon, ...extra }).filter(([, v]) => v) as [string, string][]);
+    const p = new URLSearchParams(Object.entries({ status: sp.status, q: sp.q, from: sp.from, to: sp.to, pay: sp.pay, ...extra }).filter(([, v]) => v) as [string, string][]);
     return p.size ? `?${p}` : '';
   };
   const pages = Math.max(1, Math.ceil(Number(total) / PER_PAGE));
@@ -68,21 +67,8 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
         })}
       </div>
 
-      {(sp.source || sp.campaign || sp.coupon) && (
-        <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-ink/50">Showing orders from</span>
-          {sp.source && <span className="rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-800">{sp.source === 'none' ? 'Not recorded' : sourceLabel(sp.source)}</span>}
-          {sp.campaign && <span className="rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-800">Campaign: {sp.campaign}</span>}
-          {sp.coupon && <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">Code {sp.coupon}</span>}
-          <Link href={`/admin/orders${qs({ source: undefined, campaign: undefined, coupon: undefined, page: undefined })}`} className="text-xs font-medium text-ink/55 underline hover:text-ink">Show all</Link>
-        </div>
-      )}
-
       <form className="mb-4 flex flex-wrap items-end gap-2">
         {sp.status && <input type="hidden" name="status" value={sp.status} />}
-        {sp.source && <input type="hidden" name="source" value={sp.source} />}
-        {sp.campaign && <input type="hidden" name="campaign" value={sp.campaign} />}
-        {sp.coupon && <input type="hidden" name="coupon" value={sp.coupon} />}
         <div className="min-w-[14rem] flex-1"><label className="alabel" htmlFor="q">Search</label><input id="q" name="q" defaultValue={sp.q} placeholder="Order no., phone, name or city" className="ainput" /></div>
         <div><label className="alabel" htmlFor="from">From</label><input id="from" name="from" type="date" defaultValue={sp.from} className="ainput" /></div>
         <div><label className="alabel" htmlFor="to">To</label><input id="to" name="to" type="date" defaultValue={sp.to} className="ainput" /></div>
@@ -100,7 +86,6 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
             id: o.id, number: o.number, when: fmtDateTime(o.createdAt), ago: timeAgo(o.createdAt), customer: o.customerName, phone: o.phone,
             city: o.city, zone: o.zone === 'inside_dhaka' ? 'Inside Dhaka' : 'Outside Dhaka', items: items.get(o.id) ?? 0,
             status: o.status, payment: o.paymentStatus, total: formatBDT(o.total),
-            via: o.source && o.source !== 'direct' ? sourceLabel(o.source) : null, coupon: o.couponCode,
           }))}
         />
       </section>

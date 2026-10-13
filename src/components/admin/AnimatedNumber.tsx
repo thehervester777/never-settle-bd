@@ -3,12 +3,11 @@
 import { animate, useInView, useReducedMotion } from 'framer-motion';
 import { useEffect, useRef } from 'react';
 
-export type NumberFormat = 'bdt' | 'int' | 'pct' | 'ratio';
+export type NumberFormat = 'bdt' | 'int' | 'pct';
 
 export function formatNumber(v: number, format: NumberFormat) {
   if (format === 'bdt') return `${v < 0 ? '−' : ''}৳${Math.round(Math.abs(v) / 100).toLocaleString('en-US')}`;
   if (format === 'pct') return `${(v * 100).toFixed(1)}%`;
-  if (format === 'ratio') return `${v.toFixed(2)}×`;
   return Math.round(v).toLocaleString('en-US');
 }
 

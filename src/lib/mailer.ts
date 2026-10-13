@@ -15,7 +15,6 @@ function transport() {
 
 type MailOrder = {
   number: string; customerName: string; email: string | null; phone: string; total: number;
-  discount?: number; couponCode?: string | null; shippingFee?: number;
   paymentMethod: string; items: { title: string; options: string; quantity: number; unitPrice: number }[];
 };
 
@@ -24,9 +23,7 @@ export async function sendOrderEmails(o: MailOrder) {
   if (!t) return;
   const store = process.env.NEXT_PUBLIC_STORE_NAME || 'NEVER SETTLE';
   const lines = o.items.map((i) => `${i.quantity} × ${i.title}${i.options ? ` (${i.options})` : ''} — ${formatBDT(i.unitPrice * i.quantity)}`).join('\n');
-  const discount = o.discount ? `\nDiscount${o.couponCode ? ` (${o.couponCode})` : ''}: −${formatBDT(o.discount)}` : '';
-  const delivery = o.shippingFee != null ? `\nDelivery: ${o.shippingFee ? formatBDT(o.shippingFee) : 'Free'}` : '';
-  const text = `Order ${o.number}\n\n${lines}\n${discount}${delivery}\nTotal: ${formatBDT(o.total)}\nPayment: Cash on delivery\nPhone: ${o.phone}`;
+  const text = `Order ${o.number}\n\n${lines}\n\nTotal: ${formatBDT(o.total)}\nPayment: Cash on delivery\nPhone: ${o.phone}`;
   const from = process.env.MAIL_FROM || `${store} <no-reply@localhost>`;
   try {
     if (o.email) {

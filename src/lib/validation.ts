@@ -22,7 +22,6 @@ export const checkoutSchema = z.object({
   zone: z.enum(['inside_dhaka', 'outside_dhaka']),
   paymentMethod: z.literal('COD').default('COD'),
   note: z.string().trim().max(500).optional().or(z.literal('')),
-  couponCode: z.string().trim().max(40).optional().or(z.literal('')),
 });
 export type CheckoutInput = z.infer<typeof checkoutSchema>;
 

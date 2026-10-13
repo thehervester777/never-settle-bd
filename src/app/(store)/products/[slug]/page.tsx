@@ -8,32 +8,18 @@ import { ProductCard } from '@/components/product/ProductCard';
 import { SplitText, Stagger, StaggerItem } from '@/components/motion/Reveal';
 import { getSettings } from '@/lib/settings';
 import { formatBDT } from '@/lib/money';
-import { ViewItemTracker } from '@/components/marketing/Trackers';
 
 type Params = { slug: string };
 
-const plain = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
-
-/** Link previews on Facebook, Instagram, WhatsApp and Messenger: product photo, title, price. */
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const p = await getProduct((await params).slug);
   if (!p) return {};
-  const description = `${formatBDT(p.price)} · ${plain(p.description)}`.slice(0, 155);
-  return {
-    title: p.title,
-    description,
-    alternates: { canonical: `/products/${p.slug}` },
-    openGraph: {
-      title: `${p.title} — ${formatBDT(p.price)}`, description, siteName: 'NEVER SETTLE', locale: 'en_BD', url: `/products/${p.slug}`,
-      images: p.images.slice(0, 4).map((i) => ({ url: i.url, alt: i.alt })),
-    },
-    twitter: { card: 'summary_large_image', title: p.title, description, images: p.images[0] ? [p.images[0].url] : [] },
-  };
+  const description = p.description.replace(/<[^>]+>/g, '').slice(0, 155);
+  return { title: p.title, description, openGraph: { title: p.title, description, images: p.images[0] ? [p.images[0].url] : [] } };
 }
 
-export default async function ProductPage({ params, searchParams }: { params: Promise<Params>; searchParams: Promise<{ variant?: string }> }) {
+export default async function ProductPage({ params }: { params: Promise<Params> }) {
   const { slug } = await params;
-  const linkedVariant = Number((await searchParams).variant) || null;
   const product = await getProduct(slug);
   if (!product) notFound();
   const [related, featured, latest, settings] = await Promise.all([
@@ -47,41 +33,24 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
   const others = [...related, ...featured, ...latest].filter((r) => !seen.has(r.id) && seen.add(r.id)).slice(0, 4);
   const site = process.env.NEXT_PUBLIC_SITE_URL || '';
 
-  const abs = (u: string) => (/^https?:\/\//.test(u) ? u : `${site}${u}`);
-  const price = (product.price / 100).toFixed(2);
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Product',
     name: product.title,
-    productID: `p${product.id}`,
-    sku: `p${product.id}`,
-    image: product.images.map((i) => abs(i.url)),
-    description: plain(product.description),
-    category: product.category,
+    image: product.images.map((i) => `${site}${i.url}`),
+    description: product.description.replace(/<[^>]+>/g, ''),
     brand: { '@type': 'Brand', name: 'NEVER SETTLE' },
     offers: {
       '@type': 'Offer',
       priceCurrency: 'BDT',
-      price,
-      itemCondition: 'https://schema.org/NewCondition',
+      price: (product.price / 100).toFixed(2),
       availability: product.inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
       url: `${site}/products/${product.slug}`,
-      seller: { '@type': 'Organization', name: 'NEVER SETTLE' },
     },
   };
-  const firstVariant = product.variants.find((v) => v.stock > 0) ?? product.variants[0];
 
   return (
     <>
-      {/* Product tags read by Facebook/Instagram link previews and Meta's pixel (React places them in <head>) */}
-      <meta property="og:type" content="product" />
-      <meta property="product:price:amount" content={price} />
-      <meta property="product:price:currency" content="BDT" />
-      <meta property="product:availability" content={product.inStock ? 'in stock' : 'out of stock'} />
-      <meta property="product:condition" content="new" />
-      <meta property="product:brand" content="NEVER SETTLE" />
-      <meta property="product:retailer_item_id" content={`p${product.id}`} />
-      <ViewItemTracker item={{ productId: product.id, variantId: firstVariant?.id, name: product.title, price: product.price, quantity: 1, category: product.category }} />
       <section className="pb-16 md:container md:pb-24 md:pt-6">
         <nav className="container hidden py-4 text-xs text-muted md:block md:px-0" aria-label="Breadcrumb">
           <Link href="/" className="hover:text-ink">Home</Link> <span className="mx-2">/</span>
@@ -99,8 +68,6 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
                   id: product.id, slug: product.slug, title: product.title, price: product.price, compareAt: product.compareAt,
                   image: product.images[0]?.url ?? null, variants: product.variants,
                 }}
-                initialVariantId={linkedVariant}
-                whatsapp={settings.whatsappNumber}
                 deliveryNote={`${settings.codEnabled ? 'Cash on delivery available · ' : ''}Inside Dhaka ${formatBDT(settings.shippingInsideDhaka)} · Outside Dhaka ${formatBDT(settings.shippingOutsideDhaka)}${settings.freeShippingThreshold ? ` · Free over ${formatBDT(settings.freeShippingThreshold)}` : ''}`}
               />
               <div className="mt-8 border-t border-ink/15">

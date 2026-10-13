@@ -11,7 +11,6 @@ import { StatusBadge } from '@/components/admin/StatusBadge';
 import { Card, PageHeader } from '@/components/admin/ui';
 import { AdminIcon } from '@/components/admin/AdminIcon';
 import { OrderNoteForm, OrderStatusActions, OrderStepper } from '@/components/admin/OrderActions';
-import { mediumLabel, parseAttribution, sourceLabel } from '@/lib/attribution';
 
 export const metadata = { title: 'Order' };
 
@@ -33,15 +32,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
   const costOf = new Map(currentCosts.map((c) => [c.id, c.cost]));
   const lineCost = (it: (typeof order.items)[number]) => (it.unitCost || (it.variantId ? costOf.get(it.variantId) ?? 0 : 0)) * it.quantity;
   const cogs = order.items.reduce((s, it) => s + lineCost(it), 0);
-  const profit = order.subtotal - order.discount - cogs;
-  const netSales = order.subtotal - order.discount;
-  const attr = parseAttribution(order.attribution);
-  const clicks = [attr?.fbclid && 'Facebook / Instagram ad click', (attr?.gclid || attr?.wbraid || attr?.gbraid) && 'Google ad click', attr?.ttclid && 'TikTok ad click'].filter(Boolean) as string[];
-  const sourceRows: [string, React.ReactNode][] = [
-    ['Campaign', order.campaign], ['Ad / post', attr?.ct], ['Keyword', attr?.t], ['Discount code', order.couponCode],
-    ['Landing page', attr?.land], ['Referred by', attr?.ref], ['Ad click', clicks.join(', ')],
-    ['First visit', attr?.ts ? fmtDateTime(new Date(attr.ts)) : null],
-  ].filter(([, v]) => v) as [string, React.ReactNode][];
+  const profit = order.subtotal - cogs;
 
   return (
     <div>
@@ -98,12 +89,11 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
                 <div className="rounded-xl bg-[#f7f7f4] px-4 py-3 text-sm">
                   <p className="text-ink/55">Profit on this order</p>
                   <p className={`text-xl font-semibold ${profit >= 0 ? '' : 'text-red-600'}`}>{formatBDT(profit)}</p>
-                  <p className="text-xs text-ink/45">{netSales > 0 ? `${((profit / netSales) * 100).toFixed(1)}% margin on products${order.discount ? ' after discount' : ''}` : ''}</p>
+                  <p className="text-xs text-ink/45">{order.subtotal ? `${((profit / order.subtotal) * 100).toFixed(1)}% margin on products` : ''}</p>
                 </div>
               ) : <span />}
               <dl className="w-full max-w-xs space-y-1.5 text-sm">
                 <div className="flex justify-between"><dt className="text-ink/55">Subtotal</dt><dd className="tabular">{formatBDT(order.subtotal)}</dd></div>
-                {order.discount > 0 && <div className="flex justify-between"><dt className="text-ink/55">Discount{order.couponCode ? ` (${order.couponCode})` : ''}</dt><dd className="tabular text-red-600">−{formatBDT(order.discount)}</dd></div>}
                 <div className="flex justify-between"><dt className="text-ink/55">Delivery ({order.zone === 'inside_dhaka' ? 'inside Dhaka' : 'outside Dhaka'})</dt><dd className="tabular">{order.shippingFee ? formatBDT(order.shippingFee) : 'Free'}</dd></div>
                 <div className="flex justify-between border-t border-black/[0.06] pt-2 text-base font-semibold"><dt>Total</dt><dd className="tabular">{formatBDT(order.total)}</dd></div>
               </dl>
@@ -145,23 +135,6 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
               <li className="flex gap-2.5"><AdminIcon name="pin" className="mt-0.5 h-4 w-4 shrink-0 text-ink/40" /><span>{order.address}<br />{[order.area, order.city].filter(Boolean).join(', ')}</span></li>
             </ul>
             {order.note && <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900"><span className="font-medium">Customer note:</span> {order.note}</p>}
-          </Card>
-          <Card title="Source" description="How this shopper found the store" actions={order.source ? <Link href={`/admin/orders?source=${encodeURIComponent(order.source)}`} className="text-xs font-medium text-ink/55 hover:text-ink">Similar orders</Link> : undefined}>
-            {order.source ? (
-              <>
-                <p className="flex items-center gap-2">
-                  <span className="rounded-full bg-sky-50 px-2.5 py-1 text-sm font-semibold text-sky-800">{sourceLabel(order.source)}</span>
-                  {order.medium && order.medium !== '(none)' && <span className="text-sm text-ink/55">{mediumLabel(order.medium)}</span>}
-                </p>
-                {sourceRows.length > 0 && (
-                  <dl className="mt-4 space-y-2 text-sm">
-                    {sourceRows.map(([k, v]) => <div key={k} className="flex justify-between gap-4"><dt className="shrink-0 text-ink/55">{k}</dt><dd className="min-w-0 break-all text-right">{v}</dd></div>)}
-                  </dl>
-                )}
-              </>
-            ) : (
-              <p className="text-sm text-ink/55">{order.couponCode ? <>Discount code <strong>{order.couponCode}</strong>. </> : null}Not recorded: this order was placed before campaign tracking was added.</p>
-            )}
           </Card>
           <Card title="Payment">
             <dl className="space-y-2 text-sm">

@@ -7,24 +7,18 @@ import { useCart } from '@/components/cart/CartProvider';
 import { QtyControl } from '@/components/cart/CartDrawer';
 import { Icon } from '@/components/ui/Icon';
 import { formatBDT } from '@/lib/money';
-import { trackChat } from '@/lib/track';
-import { WhatsAppIcon, waLink } from '@/components/marketing/ChatButtons';
 import { Swatch } from './Swatch';
 
 type V = { id: number; color: string | null; size: string | null; stock: number };
 type P = { id: number; slug: string; title: string; price: number; compareAt: number | null; image: string | null; variants: V[] };
 
-type Props = { product: P; deliveryNote: string; initialVariantId?: number | null; whatsapp?: string; storeName?: string };
-
-export function ProductBuy({ product, deliveryNote, initialVariantId, whatsapp, storeName = 'NEVER SETTLE' }: Props) {
+export function ProductBuy({ product, deliveryNote }: { product: P; deliveryNote: string }) {
   const { add } = useCart();
   const colors = useMemo(() => [...new Set(product.variants.map((v) => v.color).filter(Boolean))] as string[], [product.variants]);
   const sizes = useMemo(() => [...new Set(product.variants.map((v) => v.size).filter(Boolean))] as string[], [product.variants]);
   const firstInStock = product.variants.find((v) => v.stock > 0) ?? product.variants[0];
-  // Ads and the catalog feed link to a size/colour (?variant=123): open the page with it selected.
-  const linked = product.variants.find((v) => v.id === initialVariantId && v.stock > 0);
-  const [color, setColor] = useState<string | null>((linked ?? firstInStock)?.color ?? null);
-  const [size, setSize] = useState<string | null>(linked ? linked.size : sizes.length ? null : firstInStock?.size ?? null);
+  const [color, setColor] = useState<string | null>(firstInStock?.color ?? null);
+  const [size, setSize] = useState<string | null>(sizes.length ? null : firstInStock?.size ?? null);
   const [qty, setQty] = useState(1);
   const [error, setError] = useState('');
   const [added, setAdded] = useState(false);
@@ -45,16 +39,6 @@ export function ProductBuy({ product, deliveryNote, initialVariantId, whatsapp, 
     }, qty);
     setAdded(true);
     setTimeout(() => setAdded(false), 1800);
-  };
-
-  const onWhatsApp = () => {
-    if (sizes.length && !size) { setError('Please choose a size'); return; }
-    setError('');
-    const options = variant ? [variant.color, variant.size].filter(Boolean).join(' / ') : '';
-    const url = `${window.location.origin}/products/${product.slug}${variant ? `?variant=${variant.id}` : ''}`;
-    const text = `Hi ${storeName}! I'd like to order:\n${product.title}${options ? ` (${options})` : ''} × ${qty} = ${formatBDT(product.price * qty)}\n${url}`;
-    trackChat('whatsapp', `order ${product.slug}`);
-    window.open(waLink(whatsapp!, text), '_blank', 'noopener');
   };
 
   return (
@@ -113,11 +97,6 @@ export function ProductBuy({ product, deliveryNote, initialVariantId, whatsapp, 
             {soldOut ? 'Sold out' : added ? <><Icon name="check" className="h-4 w-4" /> Added to cart</> : 'Add to cart'}
           </motion.span>
         </button>
-        {whatsapp && !soldOut && (
-          <button type="button" onClick={onWhatsApp} className="btn btn-outline mt-3 w-full gap-2 py-4 text-sm">
-            <WhatsAppIcon className="h-5 w-5 text-[#25D366]" /> Order on WhatsApp
-          </button>
-        )}
         {error && <p className="mt-3 text-sm text-sale" role="alert">{error}</p>}
         {variant && variant.stock > 0 && variant.stock <= 5 && (
           <p className="mt-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-sale"><span className="h-2 w-2 animate-pulse rounded-full bg-sale" />Only {variant.stock} left</p>

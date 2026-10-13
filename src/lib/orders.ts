@@ -4,8 +4,6 @@ import { and, eq, inArray, lt, sql } from 'drizzle-orm';
 import { db, schema } from '@/db';
 import { getSettings, shippingFor } from './settings';
 import { recordMovement } from './inventory';
-import { checkCoupon } from './coupons';
-import { normalizeCode } from './attribution';
 import type { CheckoutInput } from './validation';
 
 const { orders, orderItems, variants, products, productImages } = schema;
@@ -21,15 +19,11 @@ export function orderToken(number: string) {
 export const verifyOrderToken = (number: string, token: string | null | undefined) =>
   !!token && /^[a-f0-9]{24}$/.test(token) && crypto.timingSafeEqual(Buffer.from(orderToken(number)), Buffer.from(token));
 
-/** Where the order came from (see lib/attribution). Saved with the order for the marketing report. */
-export type OrderSource = { source: string; medium: string; campaign: string | null; attribution: string | null };
-
 /**
- * Creates an order from cart lines. Prices, stock, shipping and discounts always come from the
- * database, never from the browser. Stock is reserved (decremented) and a discount code's use is
- * counted inside the same transaction.
+ * Creates an order from cart lines. Prices, stock and shipping always come from the database,
+ * never from the browser. Stock is reserved (decremented) inside the same transaction.
  */
-export async function createOrder(input: CheckoutInput, from?: OrderSource) {
+export async function createOrder(input: CheckoutInput) {
   const settings = await getSettings();
   if (input.paymentMethod === 'COD' && !settings.codEnabled) throw new CheckoutError('Cash on delivery is not available right now.', 'paymentMethod');
 
@@ -70,21 +64,8 @@ export async function createOrder(input: CheckoutInput, from?: OrderSource) {
     const firstImage = (pid: number) => images.filter((i) => i.productId === pid).sort((a, b) => a.sortOrder - b.sortOrder)[0]?.url ?? null;
 
     const subtotal = lines.reduce((s, l) => s + l.price * l.quantity, 0);
-
-    let discount = 0, couponCode: string | null = null, freeShipping = false;
-    const code = normalizeCode(input.couponCode);
-    if (code) {
-      const [locked] = await tx.select().from(schema.coupons).where(eq(schema.coupons.code, code)).for('update');
-      const check = await checkCoupon(code, { subtotal, phone: input.phone }, tx, locked);
-      if (!check.ok) throw new CheckoutError(check.error, 'couponCode');
-      discount = check.discount;
-      freeShipping = check.freeShipping;
-      couponCode = check.code;
-      await tx.update(schema.coupons).set({ usedCount: sql`${schema.coupons.usedCount} + 1` }).where(eq(schema.coupons.id, check.coupon.id));
-    }
-
-    const shippingFee = freeShipping ? 0 : shippingFor(input.zone, subtotal, settings);
-    const total = subtotal - discount + shippingFee;
+    const shippingFee = shippingFor(input.zone, subtotal, settings);
+    const total = subtotal + shippingFee;
 
     const tempNumber = `TMP-${crypto.randomBytes(6).toString('hex')}`;
     const [res] = await tx.insert(orders).values({
@@ -98,8 +79,7 @@ export async function createOrder(input: CheckoutInput, from?: OrderSource) {
       area: input.area || null,
       zone: input.zone,
       note: input.note || null,
-      subtotal, shippingFee, total, discount, couponCode,
-      source: from?.source ?? null, medium: from?.medium ?? null, campaign: from?.campaign ?? null, attribution: from?.attribution ?? null,
+      subtotal, shippingFee, total,
     });
     const orderId = Number(res.insertId);
     const number = `NS-${10000 + orderId}`;
@@ -115,9 +95,9 @@ export async function createOrder(input: CheckoutInput, from?: OrderSource) {
       // The rows are locked (FOR UPDATE above), so the new balance is exact.
       await recordMovement(tx, { variantId: l.variantId, productId: l.productId, change: -l.quantity, balanceAfter: l.stock - l.quantity, reason: 'SALE', orderId, note: number });
     }
-    await tx.insert(schema.orderEvents).values({ orderId, type: 'CREATED', message: `Order placed on the website (cash on delivery)${couponCode ? ` with code ${couponCode}` : ''}` });
+    await tx.insert(schema.orderEvents).values({ orderId, type: 'CREATED', message: 'Order placed on the website (cash on delivery)' });
 
-    return { id: orderId, number, total, subtotal, shippingFee, discount, couponCode, lines };
+    return { id: orderId, number, total, subtotal, shippingFee, lines };
   });
 }
 
