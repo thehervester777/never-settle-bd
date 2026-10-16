@@ -71,6 +71,8 @@
   /* Admin */
   /* min-w-0 lets cards shrink inside grids on phones; tables then scroll sideways inside their card */
   .admin-card { @apply min-w-0 rounded-2xl border border-black/[0.06] bg-white p-5 shadow-[0_1px_2px_rgba(16,16,16,0.04),0_10px_30px_-18px_rgba(16,16,16,0.18)]; }
+  /* A soft light follows the pointer over cards (MotionRoot sets --mx / --my) */
+  .admin-card { background-image: radial-gradient(560px circle at var(--mx, -1000px) var(--my, -1000px), var(--spot, rgba(212, 255, 58, 0.11)), transparent 42%); }
   .admin-card-title { @apply text-[0.95rem] font-semibold tracking-tight; }
   .admin-table { @apply w-full min-w-[40rem] text-left text-sm; }
   .admin-table th { @apply whitespace-nowrap border-b border-black/[0.06] bg-[#fafaf8] px-4 py-2.5 text-[0.7rem] font-medium uppercase tracking-[0.08em] text-ink/50 first:rounded-tl-2xl last:rounded-tr-2xl; }
@@ -97,12 +99,23 @@
   .seg { @apply inline-flex flex-wrap gap-1 rounded-xl border border-black/[0.06] bg-white p-1 shadow-sm; }
   .seg > a, .seg > button { @apply rounded-lg px-3 py-1.5 text-xs font-medium text-ink/60 transition-colors hover:text-ink; }
   .seg > [aria-current='true'] { @apply bg-ink text-white hover:text-white; }
+  .seg-dark { @apply border-white/10 bg-white/[0.06] shadow-none backdrop-blur; }
+  .seg-dark > a, .seg-dark > button { @apply text-white/60 hover:text-white; }
+  .seg-dark > [aria-current='true'] { @apply bg-accent text-ink hover:text-ink; }
 }
 
 .scrollbar-none { scrollbar-width: none; }
 .tabular { font-variant-numeric: tabular-nums; }
 .admin-nav-scroll { scrollbar-width: thin; scrollbar-color: rgb(255 255 255 / 0.15) transparent; }
 @media print { .no-print { display: none !important; } }
+
+/* Admin motion (GSAP + Lenis). A page stays hidden for the instant before its entrance starts. */
+[data-page]:not([data-page-in]) { opacity: 0; }
+html.lenis, html.lenis body { height: auto; }
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+.lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
+.lenis.lenis-smooth iframe { pointer-events: none; }
+@media print { [data-page] { opacity: 1 !important; } }
 .scrollbar-none::-webkit-scrollbar { display: none; }
 
 @media (prefers-reduced-motion: reduce) {

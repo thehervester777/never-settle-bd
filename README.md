@@ -111,7 +111,7 @@ The store takes **cash on delivery** only. Mark an order *Paid* in **Admin → O
 
 ## Running the store day to day
 
-Everything lives in the admin panel at `/admin`:
+Everything lives in the admin panel at `/admin`. It scrolls smoothly and pages glide in and out (GSAP with ScrollTrigger and Lenis); cards reveal themselves as you scroll and charts draw when they come into view. Anyone who turns on "reduce motion" in their phone or computer settings gets a calm version with normal scrolling and simple fades.
 
 | Area | What it does |
 |---|---|

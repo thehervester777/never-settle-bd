@@ -18,7 +18,7 @@ export function Modal({ open, onClose, title, description, children, width = 'ma
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-[70] grid place-items-end overflow-y-auto p-0 sm:place-items-center sm:p-6">
+        <div data-lenis-prevent className="fixed inset-0 z-[70] grid place-items-end overflow-y-auto p-0 sm:place-items-center sm:p-6">
           <motion.div className="fixed inset-0 bg-black/40 backdrop-blur-[2px]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
           <motion.div
             role="dialog" aria-modal="true" aria-label={title}

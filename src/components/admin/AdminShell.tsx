@@ -6,6 +6,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useRef, useState } from 'react';
 import { AdminIcon } from './AdminIcon';
 import { activeHref, type NavGroup } from './nav';
+import { MotionRoot } from './motion/MotionRoot';
+import { gsap, reducedMotion, ScrollTrigger, useGSAP } from './motion/gsap';
 
 type Badges = { toConfirm: number; unread: number; lowStock: number };
 type Props = {
@@ -24,27 +26,33 @@ function Sidebar({ nav, badges, admin, onNavigate }: { nav: NavGroup[]; badges: 
   const path = usePathname();
   const current = activeHref(path, nav.flatMap((g) => g.items.map((i) => i.href)));
   const navRef = useRef<HTMLElement>(null);
+  const root = useRef<HTMLDivElement>(null);
   // Keep the current page's link visible when the menu is taller than the screen.
   useEffect(() => { navRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'nearest' }); }, [current]);
+  // The menu slides in, group by group, when the panel opens.
+  useGSAP(() => {
+    if (reducedMotion()) return;
+    gsap.from('[data-nav-anim]', { x: -22, opacity: 0, duration: 0.8, stagger: 0.025, ease: 'expo.out', delay: 0.05, clearProps: 'transform,opacity' });
+  }, { scope: root });
   return (
-    <div className="flex h-full flex-col">
-      <Link href="/admin" onClick={onNavigate} className="flex items-center gap-3 px-5 pb-5 pt-5">
+    <div ref={root} className="flex h-full flex-col">
+      <Link data-nav-anim href="/admin" onClick={onNavigate} className="flex items-center gap-3 px-5 pb-5 pt-5">
         <span className="grid h-9 w-9 place-items-center rounded-xl bg-accent font-display text-lg text-ink">N</span>
         <span>
           <span className="block font-display text-xl uppercase leading-none tracking-wide text-white">Never Settle</span>
           <span className="mt-1 block text-[0.65rem] font-medium uppercase tracking-[0.2em] text-white/40">Commerce admin</span>
         </span>
       </Link>
-      <nav ref={navRef} className="admin-nav-scroll flex-1 space-y-4 overflow-y-auto px-3 pb-4" aria-label="Admin">
+      <nav ref={navRef} data-lenis-prevent className="admin-nav-scroll flex-1 space-y-4 overflow-y-auto px-3 pb-4" aria-label="Admin">
         {nav.map((g) => (
           <div key={g.label}>
-            <p className="px-3 pb-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-white/30">{g.label}</p>
+            <p data-nav-anim className="px-3 pb-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-white/30">{g.label}</p>
             <ul className="space-y-0.5">
               {g.items.map((item) => {
                 const active = item.href === current;
                 const count = item.badge ? badges[item.badge] : 0;
                 return (
-                  <li key={item.href}>
+                  <li key={item.href} data-nav-anim>
                     <Link
                       href={item.href}
                       onClick={onNavigate}
@@ -67,7 +75,7 @@ function Sidebar({ nav, badges, admin, onNavigate }: { nav: NavGroup[]; badges: 
           </div>
         ))}
       </nav>
-      <div className="m-3 mt-0 flex items-center gap-3 rounded-2xl bg-white/[0.05] p-2.5">
+      <div data-nav-anim className="m-3 mt-0 flex items-center gap-3 rounded-2xl bg-white/[0.05] p-2.5">
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-accent to-lime-500 text-xs font-bold text-ink">{initials(admin.name)}</span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium text-white">{admin.name}</span>
@@ -124,15 +132,33 @@ function UserMenu({ admin, logout }: { admin: Props['admin']; logout: Props['log
 
 export function AdminShell({ admin, nav, badges, canSearchOrders, logout, children }: Props) {
   const [drawer, setDrawer] = useState(false);
+  const [raised, setRaised] = useState(false);
+  const [pageTitle, setPageTitle] = useState<{ text: string; show: boolean }>({ text: '', show: false });
   const path = usePathname();
   const router = useRouter();
   useEffect(() => setDrawer(false), [path]);
+
+  // The top bar lifts off the page once you scroll, and shows the page title when the page's own heading scrolls away.
+  useGSAP(() => {
+    const lift = ScrollTrigger.create({ start: 6, end: 'max', onToggle: (self) => setRaised(self.isActive) });
+    return () => lift.kill();
+  });
+  useEffect(() => {
+    let st: ScrollTrigger | undefined;
+    const id = requestAnimationFrame(() => {
+      const h = document.querySelector<HTMLElement>('[data-page] [data-page-title]');
+      setPageTitle({ text: h?.textContent?.trim() ?? '', show: false });
+      if (h) st = ScrollTrigger.create({ trigger: h, start: 'bottom top+=72', end: 'max', onToggle: (self) => setPageTitle((t) => ({ ...t, show: self.isActive })) });
+    });
+    return () => { cancelAnimationFrame(id); st?.kill(); };
+  }, [path]);
   useEffect(() => {
     document.body.style.overflow = drawer ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [drawer]);
 
   return (
+    <MotionRoot>
     <div className="min-h-screen bg-[#f4f4f1] text-ink lg:grid lg:grid-cols-[264px_minmax(0,1fr)]">
       <aside className="no-print sticky top-0 hidden h-screen bg-[#0b0b0c] lg:block">
         <Sidebar nav={nav} badges={badges} admin={admin} />
@@ -141,8 +167,9 @@ export function AdminShell({ admin, nav, badges, canSearchOrders, logout, childr
       <AnimatePresence>
         {drawer && (
           <>
-            <motion.div className="no-print fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDrawer(false)} />
+            <motion.div data-lenis-prevent className="no-print fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDrawer(false)} />
             <motion.aside
+              data-lenis-prevent
               className="no-print fixed inset-y-0 left-0 z-50 w-[280px] bg-[#0b0b0c] shadow-2xl lg:hidden"
               initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }} transition={{ duration: 0.35, ease: EASE }}
             >
@@ -154,8 +181,21 @@ export function AdminShell({ admin, nav, badges, canSearchOrders, logout, childr
       </AnimatePresence>
 
       <div className="min-w-0">
-        <header className="no-print sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-black/[0.05] bg-[#f4f4f1]/80 px-4 backdrop-blur-xl md:px-8">
+        <header className={`no-print sticky top-0 z-30 flex h-16 items-center gap-3 border-b px-4 backdrop-blur-xl transition-[background-color,box-shadow,border-color] duration-500 md:px-8 ${raised ? 'border-black/[0.07] bg-[#f4f4f1]/90 shadow-[0_10px_30px_-20px_rgba(16,16,16,0.35)]' : 'border-transparent bg-[#f4f4f1]/70'}`}>
           <button type="button" onClick={() => setDrawer(true)} className="-ml-1 rounded-xl p-2 hover:bg-black/[0.05] lg:hidden" aria-label="Open menu"><AdminIcon name="menu" /></button>
+          <AnimatePresence>
+            {pageTitle.show && pageTitle.text && (
+              <motion.p
+                key={pageTitle.text}
+                initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
+                transition={{ duration: 0.35, ease: EASE }}
+                className="hidden max-w-[16rem] shrink-0 truncate text-sm font-semibold tracking-tight xl:block"
+                aria-hidden="true"
+              >
+                {pageTitle.text}
+              </motion.p>
+            )}
+          </AnimatePresence>
           {canSearchOrders ? (
             <form
               className="relative max-w-md flex-1"
@@ -174,8 +214,9 @@ export function AdminShell({ admin, nav, badges, canSearchOrders, logout, childr
             <UserMenu admin={admin} logout={logout} />
           </div>
         </header>
-        <main className="mx-auto w-full max-w-[1440px] px-4 py-6 md:px-8 md:py-8">{children}</main>
+        <main className="relative mx-auto w-full max-w-[1440px] px-4 py-6 md:px-8 md:py-8">{children}</main>
       </div>
     </div>
+    </MotionRoot>
   );
 }

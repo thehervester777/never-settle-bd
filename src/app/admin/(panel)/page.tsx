@@ -10,7 +10,8 @@ import { salesByCity, salesSeries, salesSummary, topProducts } from '@/lib/repor
 import { StatTile } from '@/components/admin/StatTile';
 import { BarList, ChartFrame, TrendChart } from '@/components/admin/charts';
 import { SERIES } from '@/components/admin/palette';
-import { Card, EmptyState, PageHeader, Segmented, pctChange } from '@/components/admin/ui';
+import { Card, EmptyState, pctChange } from '@/components/admin/ui';
+import { DashboardHero } from '@/components/admin/DashboardHero';
 import { StatusBadge } from '@/components/admin/StatusBadge';
 import { AdminIcon } from '@/components/admin/AdminIcon';
 
@@ -34,7 +35,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const settings = await getSettings();
   const { orders, variants, products, activityLog } = schema;
 
-  const [now, before, series, top, cities, pipeline, lowStock, recent, activity] = await Promise.all([
+  const [now, before, series, top, cities, pipeline, lowStock, recent, activity, [lowCount]] = await Promise.all([
     salesSummary(range), salesSummary(prev), salesSeries(range, by), topProducts(range), seeSales ? salesByCity(range) : Promise.resolve([]),
     db.select({ status: orders.status, n: count() }).from(orders).where(inArray(orders.status, ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED'])).groupBy(orders.status),
     seeStock
@@ -44,6 +45,9 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       : Promise.resolve([]),
     seeOrders ? db.select().from(orders).orderBy(desc(orders.createdAt)).limit(6) : Promise.resolve([]),
     seeActivity ? db.select().from(activityLog).orderBy(desc(activityLog.createdAt)).limit(7) : Promise.resolve([]),
+    seeStock
+      ? db.select({ n: count() }).from(variants).innerJoin(products, eq(variants.productId, products.id)).where(and(lte(variants.stock, settings.lowStockThreshold), eq(products.isActive, true)))
+      : Promise.resolve([{ n: 0 }]),
   ]);
 
   const pipe = new Map(pipeline.map((p) => [p.status, Number(p.n)]));
@@ -55,13 +59,22 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={`${greeting()}, ${admin.name.split(' ')[0]}`}
-        description={<>Here&apos;s how the store is doing · {range.label.toLowerCase()} to {fmtDay(dhakaDate())}</>}
-        actions={<Segmented current={range.preset} items={PERIODS.map(([k, l]) => ({ key: k, label: l, href: `/admin?range=${k}` }))} />}
+      <DashboardHero
+        greeting={greeting()} name={admin.name.split(' ')[0]}
+        description={`Here's how the store is doing · ${range.label.toLowerCase()} to ${fmtDay(dhakaDate())}`}
+        current={range.preset} periods={PERIODS.map(([k, l]) => ({ key: k, label: l, href: `/admin?range=${k}` }))}
+        chips={[
+          ...(seeOrders ? [
+            { label: 'to confirm', value: pipe.get('PENDING') ?? 0, href: '/admin/orders?status=TO_CONFIRM', tone: 'warn' as const },
+            { label: 'to pack & ship', value: (pipe.get('CONFIRMED') ?? 0) + (pipe.get('PROCESSING') ?? 0), href: '/admin/orders?status=TO_SHIP' },
+            { label: 'with the courier', value: pipe.get('SHIPPED') ?? 0, href: '/admin/orders?status=SHIPPED' },
+          ] : []),
+          ...(seeStock ? [{ label: 'low on stock', value: Number(lowCount.n), href: '/admin/inventory?filter=low', tone: 'warn' as const }] : []),
+        ]}
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* The key numbers float over the bottom edge of the hero */}
+      <div className="relative z-10 !mt-[-4.5rem] grid gap-4 px-2 sm:grid-cols-2 md:px-5 xl:grid-cols-4">
         {seeSales ? (
           <>
             <StatTile label="Sales" value={now.sales} format="bdt" delta={pctChange(now.sales, before.sales)} trend={series.map((s) => s.sales)} icon="cash" />

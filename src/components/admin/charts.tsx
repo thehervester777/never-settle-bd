@@ -1,6 +1,6 @@
 'use client';
 
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion, useInView, useReducedMotion } from 'framer-motion';
 import Link from 'next/link';
 import { useEffect, useId, useRef, useState } from 'react';
 import { formatNumber, type NumberFormat } from './AnimatedNumber';
@@ -40,6 +40,13 @@ function useWidth<T extends HTMLElement>() {
     return () => ro.disconnect();
   }, []);
   return [ref, w] as const;
+}
+
+/** Charts draw themselves when scrolled into view (or straight away for visitors who turn animations off). */
+function useDrawIn(ref: React.RefObject<Element | null>) {
+  const reduce = useReducedMotion();
+  const inView = useInView(ref, { once: true, amount: 0.25 });
+  return { reduce, go: !!reduce || inView };
 }
 
 /* ---------------------------------------------------------------- Chart / table toggle */
@@ -108,7 +115,7 @@ export function TrendChart({ labels, series, format = 'bdt', height = 260, extra
 }) {
   const [ref, width] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
-  const reduce = useReducedMotion();
+  const { reduce, go } = useDrawIn(ref);
   const gid = useId().replace(/:/g, '');
   const pad = { l: 52, r: 12, t: 12, b: 28 };
   const w = Math.max(width, 200), ih = height - pad.t - pad.b, iw = w - pad.l - pad.r;
@@ -160,13 +167,13 @@ export function TrendChart({ labels, series, format = 'bdt', height = 260, extra
             {series[0] && n > 1 && (
               <motion.path
                 d={`${path(series[0].values)}L${x(n - 1)},${y(0)}L${x(0)},${y(0)}Z`} fill={`url(#fill-${gid})`}
-                initial={reduce ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8, delay: 0.3 }}
+                initial={reduce ? false : { opacity: 0 }} animate={{ opacity: go ? 1 : 0 }} transition={{ duration: 0.8, delay: 0.3 }}
               />
             )}
             {series.map((s, si) => (
               <motion.path
                 key={s.key} d={path(s.values)} fill="none" stroke={s.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round"
-                initial={reduce ? false : { pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.1, ease: EASE, delay: si * 0.12 }}
+                initial={reduce ? false : { pathLength: 0 }} animate={{ pathLength: go ? 1 : 0 }} transition={{ duration: 1.1, ease: EASE, delay: si * 0.12 }}
               />
             ))}
             {hover !== null && (
@@ -196,7 +203,7 @@ export function TrendChart({ labels, series, format = 'bdt', height = 260, extra
 export function ColumnChart({ labels, series, format = 'bdt', height = 280 }: { labels: string[]; series: TrendSeries[]; format?: NumberFormat; height?: number }) {
   const [ref, width] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
-  const reduce = useReducedMotion();
+  const { reduce, go } = useDrawIn(ref);
   const pad = { l: 52, r: 8, t: 12, b: 28 };
   const w = Math.max(width, 200), ih = height - pad.t - pad.b, iw = w - pad.l - pad.r;
   const max = niceMax(Math.max(1, ...series.flatMap((s) => s.values)));
@@ -231,7 +238,7 @@ export function ColumnChart({ labels, series, format = 'bdt', height = 280 }: { 
                     return d && (
                       <motion.path
                         key={s.key} d={d} fill={s.color} style={{ originY: 1 }}
-                        initial={reduce ? false : { scaleY: 0 }} animate={{ scaleY: 1 }} transition={{ duration: 0.7, ease: EASE, delay: i * 0.03 }}
+                        initial={reduce ? false : { scaleY: 0 }} animate={{ scaleY: go ? 1 : 0 }} transition={{ duration: 0.7, ease: EASE, delay: i * 0.03 }}
                       />
                     );
                   })}
@@ -254,7 +261,7 @@ export function ColumnChart({ labels, series, format = 'bdt', height = 280 }: { 
 export function DivergingColumns({ labels, values, height = 220, label = 'Net profit' }: { labels: string[]; values: number[]; height?: number; label?: string }) {
   const [ref, width] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
-  const reduce = useReducedMotion();
+  const { reduce, go } = useDrawIn(ref);
   const pad = { l: 52, r: 8, t: 12, b: 28 };
   const w = Math.max(width, 200), ih = height - pad.t - pad.b, iw = w - pad.l - pad.r;
   const top = niceMax(Math.max(0, ...values)), bottom = niceMax(Math.max(0, ...values.map((v) => -v)));
@@ -287,7 +294,7 @@ export function DivergingColumns({ labels, values, height = 220, label = 'Net pr
                   <rect x={pad.l + i * band} y={pad.t} width={band} height={ih} fill={hover === i ? 'rgba(0,0,0,0.035)' : 'transparent'} rx={6} />
                   {d && (
                     <motion.path d={d} fill={v >= 0 ? SERIES.blue : SERIES.red} style={{ originY: v >= 0 ? 1 : 0 }}
-                      initial={reduce ? false : { scaleY: 0 }} animate={{ scaleY: 1 }} transition={{ duration: 0.7, ease: EASE, delay: i * 0.03 }} />
+                      initial={reduce ? false : { scaleY: 0 }} animate={{ scaleY: go ? 1 : 0 }} transition={{ duration: 0.7, ease: EASE, delay: i * 0.03 }} />
                   )}
                   {(i % every === 0) && <text x={pad.l + i * band + band / 2} y={height - 8} textAnchor="middle" fontSize={11} fill={MUTED}>{labels[i]}</text>}
                 </g>
@@ -306,11 +313,12 @@ export function DivergingColumns({ labels, values, height = 220, label = 'Net pr
 export function BarList({ rows, format = 'bdt', color = SERIES.blue, empty = 'No data for this period.' }: {
   rows: { label: string; value: number; sub?: string; href?: string }[]; format?: NumberFormat; color?: string; empty?: string;
 }) {
-  const reduce = useReducedMotion();
+  const ref = useRef<HTMLUListElement>(null);
+  const { reduce, go } = useDrawIn(ref);
   const max = Math.max(1, ...rows.map((r) => r.value));
   if (!rows.length) return <p className="py-8 text-center text-sm text-ink/45">{empty}</p>;
   return (
-    <ul className="space-y-3">
+    <ul ref={ref} className="space-y-3">
       {rows.map((r, i) => {
         const label = r.href ? <Link href={r.href} className="hover:underline">{r.label}</Link> : r.label;
         return (
@@ -322,7 +330,7 @@ export function BarList({ rows, format = 'bdt', color = SERIES.blue, empty = 'No
             <div className="h-1.5 overflow-hidden rounded-full bg-black/[0.04]">
               <motion.div
                 className="h-full rounded-full" style={{ background: color }}
-                initial={reduce ? false : { width: 0 }} animate={{ width: `${(r.value / max) * 100}%` }} transition={{ duration: 0.9, ease: EASE, delay: i * 0.05 }}
+                initial={reduce ? false : { width: 0 }} animate={{ width: go ? `${(r.value / max) * 100}%` : 0 }} transition={{ duration: 0.9, ease: EASE, delay: i * 0.05 }}
               />
             </div>
           </li>
@@ -336,7 +344,7 @@ export function BarList({ rows, format = 'bdt', color = SERIES.blue, empty = 'No
 
 export function Sparkline({ values, height = 36 }: { values: number[]; height?: number }) {
   const [ref, width] = useWidth<HTMLDivElement>();
-  const reduce = useReducedMotion();
+  const { reduce, go } = useDrawIn(ref);
   if (values.length < 2) return <div style={{ height }} />;
   const w = Math.max(width, 60), max = Math.max(...values, 1), min = Math.min(...values, 0);
   const x = (i: number) => 2 + (i / (values.length - 1)) * (w - 6);
@@ -348,7 +356,7 @@ export function Sparkline({ values, height = 36 }: { values: number[]; height?: 
       {width > 0 && (
         <svg width={w} height={height} className="overflow-visible">
           <motion.path d={d} fill="none" stroke="#b9b8b0" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round"
-            initial={reduce ? false : { pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1, ease: EASE }} />
+            initial={reduce ? false : { pathLength: 0 }} animate={{ pathLength: go ? 1 : 0 }} transition={{ duration: 1, ease: EASE }} />
           <circle cx={x(last)} cy={y(values[last])} r={3.5} fill={SERIES.blue} stroke="#fff" strokeWidth={2} />
         </svg>
       )}

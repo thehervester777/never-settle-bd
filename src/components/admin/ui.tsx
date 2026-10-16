@@ -3,17 +3,17 @@ import { AdminIcon } from './AdminIcon';
 
 export function PageHeader({ title, description, back, actions }: { title: string; description?: React.ReactNode; back?: { href: string; label: string }; actions?: React.ReactNode }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div data-page-head className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
         {back && (
-          <Link href={back.href} className="mb-2 inline-flex items-center gap-1 text-xs font-medium text-ink/50 transition hover:text-ink">
+          <Link data-page-sub href={back.href} className="mb-2 inline-flex items-center gap-1 text-xs font-medium text-ink/50 transition hover:text-ink">
             <AdminIcon name="arrow-left" className="h-3.5 w-3.5" /> {back.label}
           </Link>
         )}
-        <h1 className="text-2xl font-semibold tracking-tight md:text-[1.75rem]">{title}</h1>
-        {description && <p className="mt-1 text-sm text-ink/55">{description}</p>}
+        <h1 data-page-title className="text-2xl font-semibold tracking-tight md:text-[1.75rem]">{title}</h1>
+        {description && <p data-page-sub className="mt-1 text-sm text-ink/55">{description}</p>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {actions && <div data-page-sub className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }
@@ -47,17 +47,18 @@ export function Card({ title, description, actions, children, className = '', pa
 }
 
 /** Segmented links (filters, periods). */
-export function Segmented({ items, current }: { items: { href: string; label: React.ReactNode; key: string }[]; current: string }) {
+export function Segmented({ items, current, tone }: { items: { href: string; label: React.ReactNode; key: string }[]; current: string; tone?: 'dark' }) {
   return (
-    <div className="seg">
+    <div className={`seg ${tone === 'dark' ? 'seg-dark' : ''}`}>
       {items.map((i) => <Link key={i.key} href={i.href} aria-current={i.key === current ? 'true' : undefined} scroll={false}>{i.label}</Link>)}
     </div>
   );
 }
 
 /** Up/down change vs a previous period. `goodWhenUp` flips the colour for costs. */
-export function Delta({ value, goodWhenUp = true, suffix = 'vs previous period' }: { value: number | null; goodWhenUp?: boolean; suffix?: string }) {
-  if (value === null || !Number.isFinite(value)) return <span className="text-xs text-ink/40">No earlier data</span>;
+export function Delta({ value, goodWhenUp = true, suffix = 'vs previous period', dark }: { value: number | null; goodWhenUp?: boolean; suffix?: string; dark?: boolean }) {
+  const muted = dark ? 'text-white/45' : 'text-ink/40';
+  if (value === null || !Number.isFinite(value)) return <span className={`text-xs ${muted}`}>No earlier data</span>;
   const up = value > 0.0005, down = value < -0.0005;
   const good = (up && goodWhenUp) || (down && !goodWhenUp);
   const bad = (down && goodWhenUp) || (up && !goodWhenUp);
@@ -68,7 +69,7 @@ export function Delta({ value, goodWhenUp = true, suffix = 'vs previous period' 
         {down && <AdminIcon name="arrow-down" className="h-3 w-3" strokeWidth={2.5} />}
         {Math.abs(value * 100).toFixed(Math.abs(value) < 0.1 ? 1 : 0)}%
       </span>
-      <span className="text-ink/40">{suffix}</span>
+      <span className={muted}>{suffix}</span>
     </span>
   );
 }
