@@ -5,9 +5,9 @@ import { getProduct } from '@/lib/catalog';
 
 type Params = { slug: string };
 
-// Built on the first visit and then cached like the rest of the store (see the store layout).
-export const revalidate = 30;
-export const generateStaticParams = async (): Promise<Params[]> => [];
+// Rendered per click: Next.js 15 can't serve a page-cached copy of an intercepted route (it answers 404),
+// so this one stays dynamic. The product data still comes from the shared store cache, so it's quick.
+export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   return productMetadata((await params).slug);
