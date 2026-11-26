@@ -17,6 +17,7 @@ export const NAV: NavGroup[] = [
     label: 'Catalog',
     items: [
       { href: '/admin/products', label: 'Products', icon: 'products', perm: 'products' },
+      { href: '/admin/categories', label: 'Categories', icon: 'categories', perm: 'products' },
       { href: '/admin/inventory', label: 'Inventory', icon: 'inventory', perm: 'inventory', badge: 'lowStock' },
     ],
   },

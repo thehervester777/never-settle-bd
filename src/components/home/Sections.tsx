@@ -48,7 +48,7 @@ export function ProductRow({ eyebrow, heading, products, href }: { eyebrow: stri
 
 export function CategoryTiles({ categories }: { categories: { name: string; slug: string; image: string | null; count: number }[] }) {
   return (
-    <section className="py-16 md:py-24">
+    <section id="categories" className="scroll-mt-20 py-16 md:py-24">
       <div className="container">
         <div className="mb-8 md:mb-12">
           <Reveal><p className="eyebrow mb-3 text-muted">Shop by category</p></Reveal>
