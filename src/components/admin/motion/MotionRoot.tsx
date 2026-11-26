@@ -112,6 +112,10 @@ export function MotionRoot({ children }: { children: React.ReactNode }) {
       window.clearTimeout(was.safety);
       leaving.current = null;
       lenis.current?.scrollTo(0, { immediate: true, force: true });
+      // Safety net: a page must never stay faded out after arriving.
+      document.querySelectorAll<HTMLElement>('[data-page]').forEach((p) => {
+        if (p.style.visibility === 'hidden') gsap.fromTo(p, { autoAlpha: 0, y: 14 }, { autoAlpha: 1, y: 0, filter: 'blur(0px)', duration: 0.4, ease: 'power2.out', clearProps: 'visibility,opacity,transform,filter' });
+      });
       if (loader.current) gsap.to(loader.current, { scaleX: 1, duration: 0.25, ease: 'power2.out', onComplete: () => { gsap.to(loader.current, { autoAlpha: 0, duration: 0.3 }); } });
     }
     lenis.current?.resize();
