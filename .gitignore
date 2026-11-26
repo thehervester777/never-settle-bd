@@ -5,3 +5,7 @@ uploads/*
 !uploads/.gitkeep
 tsconfig.tsbuildinfo
 *.log
+
+# Test output
+/test-results/
+/playwright-report/

@@ -35,5 +35,13 @@ await conn.execute(
   'INSERT INTO admins (email, name, password_hash) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name), password_hash = VALUES(password_hash)',
   [email.toLowerCase().trim(), name, hash],
 );
+// A reset from the server also unlocks the account and turns off two-step sign-in (for a lost phone).
+// Older databases may not have these columns yet; the app adds them on its next start.
+try {
+  await conn.execute(
+    'UPDATE admins SET failed_logins = 0, locked_until = NULL, totp_secret = NULL, totp_enabled_at = NULL, totp_last_step = 0, recovery_codes = NULL WHERE email = ?',
+    [email.toLowerCase().trim()],
+  );
+} catch { /* columns not there yet: nothing to reset */ }
 await conn.end();
 console.log(`Admin ready: ${email} — sign in at /admin/login`);

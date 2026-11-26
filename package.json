@@ -11,7 +11,10 @@
     "db:push": "drizzle-kit push",
     "db:seed": "node scripts/seed.mjs",
     "admin:create": "node scripts/create-admin.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"tests/unit/*.test.ts\"",
+    "test:e2e": "playwright test",
+    "test:load": "node scripts/load-test.mjs"
   },
   "engines": {
     "node": ">=18.18"
@@ -37,6 +40,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@tailwindcss/forms": "^0.5.11",
     "@types/node": "^26.6.3",
     "@types/nodemailer": "^8.0.2",

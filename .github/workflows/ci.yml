@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'claude/**']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci-root-pass
+          MYSQL_DATABASE: ns
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-root-pass"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DATABASE_URL: mysql://root:ci-root-pass@127.0.0.1:3306/ns
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      E2E_ADMIN_EMAIL: owner@ci.test
+      E2E_ADMIN_PASSWORD: ci-Owner-pass-2026
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Dependency audit (production packages)
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Database
+        run: |
+          mysql -h 127.0.0.1 -uroot -pci-root-pass ns < database/install.sql
+          mysql -h 127.0.0.1 -uroot -pci-root-pass ns < database/sample-data.sql
+
+      - name: Secret for this run
+        run: echo "AUTH_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: npm run build
+
+      - name: Owner account
+        run: ADMIN_PASSWORD="$E2E_ADMIN_PASSWORD" npm run admin:create -- "$E2E_ADMIN_EMAIL" "CI Owner"
+
+      - name: Start the store
+        run: |
+          nohup node server.js > server.log 2>&1 &
+          for i in $(seq 1 60); do curl -fs -o /dev/null http://localhost:3000/robots.txt && exit 0; sleep 1; done
+          cat server.log; exit 1
+
+      - name: Browser
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end tests
+        run: npx playwright test --trace off
+
+      - name: Load test (smoke)
+        run: npm run test:load -- http://localhost:3000 50 10
+
+      - name: Server log
+        if: always()
+        run: cat server.log || true
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          retention-days: 7
