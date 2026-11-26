@@ -2,6 +2,7 @@ import 'server-only';
 import { asc, eq } from 'drizzle-orm';
 import { db, schema } from '@/db';
 import type { Slide } from '@/components/home/Hero';
+import { cached } from '@/lib/store-cache';
 
 export type SlideRow = typeof schema.homeSlides.$inferSelect;
 
@@ -30,8 +31,8 @@ export const toSlide = (r: SlideRow): Slide => ({
 /** The live homepage slides, in the order set in Admin → Homepage slider. */
 export async function getSlides(): Promise<Slide[]> {
   try {
-    const rows = await db.select().from(schema.homeSlides).where(eq(schema.homeSlides.isActive, true))
-      .orderBy(asc(schema.homeSlides.sortOrder), asc(schema.homeSlides.id));
+    const rows = await cached('slides', () => db.select().from(schema.homeSlides).where(eq(schema.homeSlides.isActive, true))
+      .orderBy(asc(schema.homeSlides.sortOrder), asc(schema.homeSlides.id)));
     return rows.map(toSlide);
   } catch (e) {
     console.error('Homepage slides unavailable', e);

@@ -5,7 +5,12 @@ import { Footer } from '@/components/layout/Footer';
 import { getCategories } from '@/lib/catalog';
 import { getSettings } from '@/lib/settings';
 
-export const dynamic = 'force-dynamic';
+/*
+ * Store pages are cached and served ready-made (ISR): rebuilt in the background at most every 30
+ * seconds, and straight away after an admin change (refreshStore). Pages that depend on the visitor
+ * (filters, search, order pages) are still built per request, from cached data.
+ */
+export const revalidate = 30;
 
 export default async function StoreLayout({ children, modal }: { children: React.ReactNode; modal: React.ReactNode }) {
   const [categories, settings] = await Promise.all([getCategories().catch(() => []), getSettings()]);

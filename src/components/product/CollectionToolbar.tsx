@@ -1,10 +1,10 @@
 'use client';
 
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { Drawer } from '@/components/layout/Header';
 import { Icon } from '@/components/ui/Icon';
-import { SORTS } from '@/lib/catalog-shared';
+import { SORTS, collectionPath } from '@/lib/catalog-shared';
 import { Swatch } from './Swatch';
 
 type Facets = { sizes: string[]; colors: string[]; maxPrice: number };
@@ -13,20 +13,14 @@ type Active = { sizes: string[]; colors: string[]; min?: string; max?: string };
 export function CollectionToolbar({ facets, count, sort, active }: { facets: Facets; count: number; sort: string; active: Active }) {
   const router = useRouter();
   const pathname = usePathname();
-  const params = useSearchParams();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [draft, setDraft] = useState<Active>(active);
   const activeCount = active.sizes.length + active.colors.length + (active.min || active.max ? 1 : 0);
 
+  const base = pathname.replace(/\/f\/[^/]*$/, '');
   const push = (next: Active, nextSort = sort) => {
-    const q = new URLSearchParams();
-    next.sizes.forEach((s) => q.append('size', s));
-    next.colors.forEach((c) => q.append('color', c));
-    if (next.min) q.set('min', next.min);
-    if (next.max) q.set('max', next.max);
-    if (nextSort && nextSort !== 'featured') q.set('sort', nextSort);
-    startTransition(() => router.push(`${pathname}${q.toString() ? `?${q}` : ''}`, { scroll: false }));
+    startTransition(() => router.push(collectionPath(base, { sort: nextSort, sizes: next.sizes, colors: next.colors, min: next.min, max: next.max }), { scroll: false }));
   };
   const toggle = (key: 'sizes' | 'colors', v: string) => {
     const next = { ...draft, [key]: draft[key].includes(v) ? draft[key].filter((x) => x !== v) : [...draft[key], v] };

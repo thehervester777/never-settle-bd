@@ -2,6 +2,7 @@ import 'server-only';
 import { cache } from 'react';
 import { db, schema } from '@/db';
 import { sql } from 'drizzle-orm';
+import { cached } from '@/lib/store-cache';
 
 /** Store settings the admin can change. Money values are in poisha. */
 export type StoreSettings = {
@@ -40,11 +41,28 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   invoiceNote: 'Thank you for shopping with NEVER SETTLE. Exchanges within 7 days with tags attached.',
 };
 
+async function readSettings(): Promise<StoreSettings> {
+  const rows = await db.select().from(schema.settings);
+  const stored = Object.fromEntries(rows.map((r) => [r.key, JSON.parse(r.value)]));
+  // Only known keys, with the right type, so nothing unexpected in the table ever reaches a page.
+  const out = { ...DEFAULT_SETTINGS } as Record<string, unknown>;
+  for (const key of Object.keys(DEFAULT_SETTINGS)) if (key in stored && typeof stored[key] === typeof out[key]) out[key] = stored[key];
+  return out as StoreSettings;
+}
+
+/** Settings as the store shows them, cached briefly (see store-cache). */
 export const getSettings = cache(async (): Promise<StoreSettings> => {
   try {
-    const rows = await db.select().from(schema.settings);
-    const stored = Object.fromEntries(rows.map((r) => [r.key, JSON.parse(r.value)]));
-    return { ...DEFAULT_SETTINGS, ...stored };
+    return await cached('settings', readSettings);
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+});
+
+/** Straight from the database: for the settings form and for pricing an order. */
+export const getFreshSettings = cache(async (): Promise<StoreSettings> => {
+  try {
+    return await readSettings();
   } catch {
     return DEFAULT_SETTINGS;
   }

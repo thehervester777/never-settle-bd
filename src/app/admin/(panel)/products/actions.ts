@@ -2,7 +2,7 @@
 
 import { randomBytes } from 'crypto';
 import { redirect } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
+import { refreshStore } from '@/lib/store-cache';
 import { and, eq, ne, notInArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, schema } from '@/db';
@@ -119,7 +119,7 @@ export async function saveProduct(id: number | null, payload: unknown): Promise<
   });
 
   await logActivity(admin, id ? 'product.update' : 'product.create', 'product', productId, `${id ? 'Edited' : 'Added'} product ${d.title}`);
-  revalidatePath('/', 'layout');
+  refreshStore();
   redirect(`/admin/products/${productId}?flash=saved`);
 }
 
@@ -136,6 +136,6 @@ export async function deleteProduct(id: number) {
     await db.delete(schema.products).where(eq(schema.products.id, id));
   }
   await logActivity(admin, 'product.delete', 'product', id, `${used.length ? 'Hid' : 'Deleted'} product ${p?.title ?? id}`);
-  revalidatePath('/', 'layout');
+  refreshStore();
   redirect('/admin/products?flash=deleted');
 }

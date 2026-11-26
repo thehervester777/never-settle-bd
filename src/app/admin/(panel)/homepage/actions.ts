@@ -7,6 +7,7 @@ import { db, schema } from '@/db';
 import { SLIDE_MEDIA } from '@/db/schema';
 import { requirePermission } from '@/lib/auth';
 import { logActivity } from '@/lib/activity';
+import { refreshStore } from '@/lib/store-cache';
 
 type Result = { ok: boolean; message: string; field?: string };
 
@@ -37,7 +38,7 @@ const slideSchema = z.object({
 });
 export type SlideInput = z.input<typeof slideSchema>;
 
-const refresh = () => { revalidatePath('/'); revalidatePath('/admin/homepage'); };
+const refresh = () => { refreshStore(); revalidatePath('/admin/homepage'); };
 const name = (s: { heading: string; eyebrow: string }, id?: number) => (s.heading.replace(/\n/g, ' ') || s.eyebrow || `slide ${id ?? ''}`.trim()).slice(0, 80);
 
 export async function saveSlide(input: SlideInput): Promise<Result> {

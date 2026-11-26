@@ -7,6 +7,7 @@ import type { AdminSession } from '@/lib/auth';
 import { logActivity } from '@/lib/activity';
 import { releaseStock, reserveStockAgain } from '@/lib/orders';
 import { formatBDT } from '@/lib/money';
+import { refreshStore } from '@/lib/store-cache';
 
 export const STATUS_LABEL: Record<OrderStatus, string> = {
   PENDING: 'Pending', CONFIRMED: 'Confirmed', PROCESSING: 'Packing', SHIPPED: 'Shipped', DELIVERED: 'Delivered', CANCELLED: 'Cancelled', RETURNED: 'Returned',
@@ -28,9 +29,11 @@ export async function changeOrderStatus(orderId: number, status: OrderStatus, ad
 
   if (CLOSED.includes(status)) {
     await releaseStock(orderId, status === 'RETURNED' ? 'RETURN' : 'CANCEL', admin.id);
+    refreshStore(); // the items are back on sale
   } else if (o.stockReleased) {
     const problem = await reserveStockAgain(orderId, admin.id);
     if (problem) return problem;
+    refreshStore();
   }
 
   await db.update(schema.orders).set({

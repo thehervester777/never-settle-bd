@@ -1,17 +1,17 @@
 import { Hero } from '@/components/home/Hero';
 import { Banner, CategoryTiles, Marquee, ProductRow, PromiseSection, Story } from '@/components/home/Sections';
-import { getCategories, listProducts } from '@/lib/catalog';
+import { categoryCounts, getCategories, listProducts } from '@/lib/catalog';
 import { getSlides } from '@/lib/home';
 
 export default async function HomePage() {
-  const [slides, newIn, featured, categories, all] = await Promise.all([
+  const [slides, newIn, featured, categories, perCategory] = await Promise.all([
     getSlides(),
     listProducts({ category: 'new-in', sort: 'newest', limit: 4 }),
     listProducts({ featured: true, limit: 4 }),
     getCategories(),
-    listProducts({ limit: 500 }),
+    categoryCounts(),
   ]);
-  const counts = (slug: string) => all.filter((p) => p.categorySlug === slug).length;
+  const counts = (slug: string) => perCategory.get(slug) ?? 0;
 
   return (
     <>

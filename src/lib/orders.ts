@@ -2,7 +2,7 @@ import 'server-only';
 import crypto from 'crypto';
 import { and, eq, inArray, lt, sql } from 'drizzle-orm';
 import { db, schema } from '@/db';
-import { getSettings, shippingFor } from './settings';
+import { getFreshSettings, shippingFor } from './settings';
 import { recordMovement } from './inventory';
 import type { CheckoutInput } from './validation';
 
@@ -24,7 +24,7 @@ export const verifyOrderToken = (number: string, token: string | null | undefine
  * never from the browser. Stock is reserved (decremented) inside the same transaction.
  */
 export async function createOrder(input: CheckoutInput) {
-  const settings = await getSettings();
+  const settings = await getFreshSettings();
   if (input.paymentMethod === 'COD' && !settings.codEnabled) throw new CheckoutError('Cash on delivery is not available right now.', 'paymentMethod');
 
   // Merge duplicate lines for the same variant.

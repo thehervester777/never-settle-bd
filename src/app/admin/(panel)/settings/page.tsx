@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/auth';
-import { getSettings, saveSettings } from '@/lib/settings';
+import { getFreshSettings, saveSettings } from '@/lib/settings';
+import { refreshStore } from '@/lib/store-cache';
 import { toPoisha } from '@/lib/money';
 import { logActivity } from '@/lib/activity';
 import { Card, PageHeader } from '@/components/admin/ui';
@@ -26,13 +26,13 @@ async function save(formData: FormData) {
     invoiceNote: t('invoiceNote', 300),
   });
   await logActivity(admin, 'settings.update', 'settings', null, 'Updated store settings');
-  revalidatePath('/', 'layout');
+  refreshStore();
   redirect('/admin/settings?flash=saved');
 }
 
 export default async function SettingsPage() {
   await requirePermission('settings');
-  const s = await getSettings();
+  const s = await getFreshSettings();
   const taka = (p: number) => String(p / 100);
   const input = (name: string, label: string, value: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}, hint?: string) => (
     <div><label className="alabel" htmlFor={name}>{label}</label><input id={name} name={name} defaultValue={value} className="ainput" {...props} />{hint && <p className="ahint">{hint}</p>}</div>

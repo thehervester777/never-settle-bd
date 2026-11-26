@@ -33,7 +33,12 @@ function connectionOptions(): mysql.PoolOptions {
   return {
     uri,
     // Serverless hosts run many copies of the app at once, so each keeps fewer connections open.
-    connectionLimit: process.env.VERCEL ? 3 : 8, // shared hosting usually allows ~10–25 connections per user
+    // Shared hosting usually allows ~10–25 connections per user; DATABASE_POOL_SIZE overrides.
+    connectionLimit: Math.max(1, Number(process.env.DATABASE_POOL_SIZE) || (process.env.VERCEL ? 3 : 8)),
+    // Under a traffic spike, wait in line for a connection instead of failing, but not forever.
+    queueLimit: 500,
+    waitForConnections: true,
+    enableKeepAlive: true,
     connectTimeout: 10_000,
     charset: 'utf8mb4',
     timezone: 'Z',

@@ -40,6 +40,9 @@ const POLICIES: Record<string, Policy> = {
   },
 };
 
+export const revalidate = 30;
+export const generateStaticParams = async (): Promise<{ slug: string }[]> => [];
+
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const p = POLICIES[(await params).slug];
   return p ? { title: p.title } : {};

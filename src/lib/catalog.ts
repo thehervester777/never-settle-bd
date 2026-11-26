@@ -2,6 +2,7 @@ import 'server-only';
 import { cache } from 'react';
 import { and, asc, desc, eq, inArray, like, or, sql, gte, lte, type SQL } from 'drizzle-orm';
 import { db, schema } from '@/db';
+import { cached } from '@/lib/store-cache';
 
 const { products, productImages, variants, categories } = schema;
 
@@ -94,14 +95,20 @@ export type ListFilters = {
   featured?: boolean;
 };
 
-export async function listProducts(f: ListFilters = {}): Promise<ProductCard[]> {
+/** Products for the store, cached briefly (see store-cache). */
+export const listProducts = (f: ListFilters = {}): Promise<ProductCard[]> => cached(`products:${JSON.stringify(f)}`, () => queryProducts(f));
+
+/** Escapes % and _ so a search for "50%" matches the text, not everything. */
+const likeTerm = (q: string) => `%${q.trim().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+
+async function queryProducts(f: ListFilters): Promise<ProductCard[]> {
   const where: SQL[] = [eq(products.isActive, true)];
   if (f.category && !['all', 'new-in', 'sale'].includes(f.category)) where.push(eq(categories.slug, f.category));
   if (f.category === 'new-in') where.push(like(products.tags, '%new%'));
   if (f.category === 'sale') where.push(sql`${products.compareAt} > ${products.price}`);
   if (f.featured) where.push(eq(products.isFeatured, true));
   if (f.q) {
-    const term = `%${f.q.trim()}%`;
+    const term = likeTerm(f.q);
     where.push(or(like(products.title, term), like(categories.name, term), like(products.tags, term))!);
   }
   if (f.min != null) where.push(gte(products.price, f.min));
@@ -122,7 +129,9 @@ export async function listProducts(f: ListFilters = {}): Promise<ProductCard[]> 
   return hydrate(rows);
 }
 
-export const getProduct = cache(async (slug: string): Promise<ProductDetail | null> => {
+export const getProduct = cache((slug: string): Promise<ProductDetail | null> => cached(`product:${slug}`, () => loadProduct(slug)));
+
+async function loadProduct(slug: string): Promise<ProductDetail | null> {
   const rows = await baseSelect().where(and(eq(products.slug, slug), eq(products.isActive, true))).limit(1);
   if (!rows.length) return null;
   const [card] = await hydrate(rows);
@@ -133,16 +142,23 @@ export const getProduct = cache(async (slug: string): Promise<ProductDetail | nu
     details: rows[0].details,
     variants: vars.map((v) => ({ id: v.id, color: v.color, size: v.size, stock: v.stock })),
   };
-});
+}
 
-export const getCategories = cache(async () =>
+export const getCategories = cache(() => cached('categories', () =>
   db.select().from(categories).orderBy(asc(categories.sortOrder), asc(categories.name)),
-);
+));
 
-export const getCategory = cache(async (slug: string) => {
+export const getCategory = cache((slug: string) => cached(`category:${slug}`, async () => {
   const [c] = await db.select().from(categories).where(eq(categories.slug, slug)).limit(1);
   return c ?? null;
-});
+}));
+
+/** Active products per category slug, for the category tiles (one small query instead of loading every product). */
+export const categoryCounts = cache(() => cached('category-counts', async () => {
+  const rows = await db.select({ slug: categories.slug, n: sql<number>`COUNT(*)` }).from(products)
+    .innerJoin(categories, eq(products.categoryId, categories.id)).where(eq(products.isActive, true)).groupBy(categories.slug);
+  return new Map(rows.map((r) => [r.slug, Number(r.n)]));
+}));
 
 /** Filter options (sizes, colors, price range) for a listing. */
 export async function facetsFor(products: ProductCard[]) {

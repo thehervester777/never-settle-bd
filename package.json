@@ -2,7 +2,7 @@
   "name": "never-settle-web",
   "version": "1.0.0",
   "private": true,
-  "description": "NEVER SETTLE — full-stack fashion store (Next.js, Tailwind CSS, Framer Motion, MySQL, cash on delivery)",
+  "description": "NEVER SETTLE \u2014 full-stack fashion store (Next.js, Tailwind CSS, Framer Motion, MySQL, cash on delivery)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -28,12 +28,12 @@
     "jose": "^6.2.12",
     "lenis": "1.3.26",
     "mysql2": "^3.24.4",
-    "next": "^15.5.26",
-    "nodemailer": "^7.0.13",
+    "next": "15.5.29",
+    "nodemailer": "10.5.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "server-only": "^0.0.1",
-    "zod": "^3.25.76"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/forms": "^0.5.11",
@@ -44,9 +44,17 @@
     "autoprefixer": "^10.6.1",
     "drizzle-kit": "^0.31.11",
     "eslint": "^9.39.5",
-    "eslint-config-next": "^15.5.26",
-    "postcss": "^8.5.28",
+    "eslint-config-next": "15.5.29",
+    "postcss": "8.5.28",
     "tailwindcss": "^3.4.19",
     "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "undici": "6.29.1",
+    "postcss": "$postcss",
+    "source-map-js": "1.2.2",
+    "@vercel/cli-config": {
+      "zod": "4.6.7"
+    }
   }
 }
