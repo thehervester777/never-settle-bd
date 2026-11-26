@@ -12,6 +12,12 @@ CREATE TABLE `admins` (
 	`role` varchar(20) NOT NULL DEFAULT 'OWNER',
 	`is_active` boolean NOT NULL DEFAULT true,
 	`last_login_at` datetime,
+	`failed_logins` int NOT NULL DEFAULT 0,
+	`locked_until` datetime,
+	`totp_secret` varchar(255),
+	`totp_enabled_at` datetime,
+	`totp_last_step` int NOT NULL DEFAULT 0,
+	`recovery_codes` text,
 	`created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT `admins_id` PRIMARY KEY(`id`),
 	CONSTRAINT `admins_email_uq` UNIQUE(`email`)

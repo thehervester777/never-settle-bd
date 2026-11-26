@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getSettings } from '@/lib/settings';
+import { escapeHtml } from '@/lib/sanitize-html';
 
 type Policy = { title: string; body: (s: { email: string; phone: string }) => string };
 
@@ -55,7 +56,7 @@ export default async function PolicyPage({ params }: { params: Promise<{ slug: s
   return (
     <section className="container max-w-3xl pb-24 pt-10 md:pt-16">
       <h1 className="font-display text-display-md uppercase">{p.title}</h1>
-      <div className="rte mt-10" dangerouslySetInnerHTML={{ __html: p.body(s) }} />
+      <div className="rte mt-10" dangerouslySetInnerHTML={{ __html: p.body({ email: escapeHtml(s.email), phone: escapeHtml(s.phone) }) }} />
     </section>
   );
 }

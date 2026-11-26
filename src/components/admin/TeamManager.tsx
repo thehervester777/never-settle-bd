@@ -10,7 +10,7 @@ import { Modal } from './Modal';
 import { StatusBadge } from './StatusBadge';
 import { toast } from './toast';
 
-export type Member = { id: number; name: string; email: string; role: AdminRole; isActive: boolean; lastLogin: string; joined: string; isMe: boolean };
+export type Member = { id: number; name: string; email: string; role: AdminRole; isActive: boolean; lastLogin: string; joined: string; isMe: boolean; twoStep: boolean; locked: boolean };
 type RoleInfo = Record<AdminRole, { label: string; summary: string }>;
 
 const ROLE_STYLE: Record<AdminRole, string> = {
@@ -72,10 +72,12 @@ export function TeamManager({ members, roles }: { members: Member[]; roles: Role
               </div>
               <StatusBadge status={m.isActive ? 'ACTIVE' : 'DISABLED'} label={m.isActive ? 'Active' : 'Off'} />
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-ink/50">
+            <div className="mt-4 grid grid-cols-3 gap-2 text-xs text-ink/50">
               <span>Last sign-in<br /><span className="text-sm text-ink">{m.lastLogin}</span></span>
               <span>Joined<br /><span className="text-sm text-ink">{m.joined}</span></span>
+              <span>Two-step<br /><span className={`text-sm ${m.twoStep ? 'text-emerald-700' : 'text-ink/60'}`}>{m.twoStep ? 'On' : 'Off'}</span></span>
             </div>
+            {m.locked && <p className="mt-3 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">Locked after too many wrong passwords. Resetting the password unlocks it.</p>}
             <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-black/[0.05] pt-4">
               {m.isMe ? (
                 <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${ROLE_STYLE[m.role]}`}>{roles[m.role].label}</span>
@@ -119,7 +121,7 @@ export function TeamManager({ members, roles }: { members: Member[]; roles: Role
         </form>
       </Modal>
 
-      <Modal open={!!resetFor} onClose={() => setResetFor(null)} title={`Reset ${resetFor?.name ?? ''}’s password`} description="They’ll be signed out everywhere and need the new password to sign in.">
+      <Modal open={!!resetFor} onClose={() => setResetFor(null)} title={`Reset ${resetFor?.name ?? ''}’s password`} description="They’ll be signed out everywhere and need the new password to sign in. This also unlocks the account and turns off two-step sign-in, if they lost their phone.">
         <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); if (resetFor) run(() => resetPassword(resetFor.id, pw), () => setResetFor(null)); }}>
           <PasswordField value={pw} onChange={setPw} />
           <button className="abtn abtn-primary w-full py-3" disabled={pending}>Set new password</button>

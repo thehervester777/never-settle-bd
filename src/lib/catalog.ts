@@ -3,6 +3,7 @@ import { cache } from 'react';
 import { and, asc, desc, eq, inArray, like, or, sql, gte, lte, type SQL } from 'drizzle-orm';
 import { db, schema } from '@/db';
 import { cached } from '@/lib/store-cache';
+import { sanitizeHtml } from '@/lib/sanitize-html';
 
 const { products, productImages, variants, categories } = schema;
 
@@ -138,8 +139,9 @@ async function loadProduct(slug: string): Promise<ProductDetail | null> {
   const vars = await db.select().from(variants).where(eq(variants.productId, rows[0].id)).orderBy(asc(variants.id));
   return {
     ...card,
-    description: rows[0].description,
-    details: rows[0].details,
+    // Cleaned again when shown, so text saved before the admin cleaned it can never run scripts.
+    description: sanitizeHtml(rows[0].description),
+    details: rows[0].details ? sanitizeHtml(rows[0].details) : null,
     variants: vars.map((v) => ({ id: v.id, color: v.color, size: v.size, stock: v.stock })),
   };
 }

@@ -31,7 +31,7 @@ export default async function FaqPage() {
           {faqs.map((f, i) => <Accordion key={f.q} title={f.q} defaultOpen={i === 0}><p>{f.a}</p></Accordion>)}
         </div>
       </div>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />
     </section>
   );
 }

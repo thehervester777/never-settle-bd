@@ -2,8 +2,10 @@ import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
+import crypto from 'crypto';
 import { db, schema } from '@/db';
 import { adminCount, hashPassword, startSession } from '@/lib/auth';
+import { PASSWORD_MESSAGES, passwordIssue } from '@/lib/password-policy';
 import { rateLimit } from '@/lib/rate-limit';
 import { logActivity } from '@/lib/activity';
 import { AuthLayout } from '@/components/admin/AuthLayout';
@@ -11,15 +13,28 @@ import { AuthLayout } from '@/components/admin/AuthLayout';
 export const metadata: Metadata = { title: 'Create admin account', robots: { index: false } };
 export const dynamic = 'force-dynamic';
 
-/**
+/*
  * First-run setup: lets you create the first admin from the browser, for hosts without a terminal.
  * It only works while there are NO admin accounts; after that it always sends you to the login page.
  */
+
+/**
+ * Until the owner account exists, anyone who finds /admin/setup could claim the store. So the form also asks
+ * for a setup key that only the person who set up the hosting knows: SETUP_KEY if set, otherwise AUTH_SECRET.
+ */
+function setupKeyMatches(given: string) {
+  const expected = process.env.SETUP_KEY || process.env.AUTH_SECRET || '';
+  if (expected.length < 12) return false;
+  const h = (v: string) => crypto.createHash('sha256').update(v.trim()).digest();
+  return crypto.timingSafeEqual(h(given), h(expected));
+}
+
 const setupSchema = z.object({
   name: z.string().trim().min(2).max(120),
   email: z.string().trim().toLowerCase().email().max(160),
-  password: z.string().min(10).max(200),
+  password: z.string().max(200),
   confirm: z.string(),
+  setupKey: z.string().max(500),
 }).refine((v) => v.password === v.confirm, { path: ['confirm'] });
 
 async function createFirstAdmin(formData: FormData) {
@@ -31,7 +46,10 @@ async function createFirstAdmin(formData: FormData) {
     const field = String(parsed.error.issues[0]?.path[0] ?? 'form');
     redirect(`/admin/setup?e=${encodeURIComponent(field)}`);
   }
-  const { name, email, password } = parsed.data;
+  const { name, email, password, setupKey } = parsed.data;
+  if (!setupKeyMatches(setupKey)) redirect('/admin/setup?e=key');
+  const issue = passwordIssue(password, email);
+  if (issue) redirect(`/admin/setup?e=pw-${issue}`);
   const passwordHash = await hashPassword(password);
   // Re-check right before writing so two people can't both claim the store.
   if ((await adminCount()) > 0) redirect('/admin/login');
@@ -48,6 +66,8 @@ const MESSAGES: Record<string, string> = {
   password: 'Use a password of at least 10 characters.',
   confirm: "The two passwords don't match.",
   rate: 'Too many attempts. Please wait a minute and try again.',
+  key: 'The setup key is wrong. Copy it again from your hosting settings.',
+  ...Object.fromEntries(Object.entries(PASSWORD_MESSAGES).map(([k, v]) => [`pw-${k}`, v])),
 };
 
 export default async function AdminSetup({ searchParams }: { searchParams: Promise<{ e?: string }> }) {
@@ -61,6 +81,11 @@ export default async function AdminSetup({ searchParams }: { searchParams: Promi
         <div><label htmlFor="email" className="alabel">Email</label><input id="email" name="email" type="email" required autoComplete="username" className="ainput" /></div>
         <div><label htmlFor="password" className="alabel">Password (at least 10 characters)</label><input id="password" name="password" type="password" required minLength={10} autoComplete="new-password" className="ainput" /></div>
         <div><label htmlFor="confirm" className="alabel">Confirm password</label><input id="confirm" name="confirm" type="password" required minLength={10} autoComplete="new-password" className="ainput" /></div>
+        <div>
+          <label htmlFor="setupKey" className="alabel">Setup key</label>
+          <input id="setupKey" name="setupKey" type="password" required autoComplete="off" className="ainput font-mono" />
+          <p className="ahint">The AUTH_SECRET value from your hosting settings (or SETUP_KEY, if you added one). It proves you own this site.</p>
+        </div>
         <button className="abtn abtn-primary w-full py-3">Create account</button>
       </form>
     </AuthLayout>

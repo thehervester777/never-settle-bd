@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { refreshStore } from '@/lib/store-cache';
 import { and, eq, ne, notInArray } from 'drizzle-orm';
 import { z } from 'zod';
+import { sanitizeHtml } from '@/lib/sanitize-html';
 import { db, schema } from '@/db';
 import { requirePermission } from '@/lib/auth';
 import { can } from '@/lib/permissions';
@@ -81,7 +82,7 @@ export async function saveProduct(id: number | null, payload: unknown): Promise<
   const values = {
     title: d.title, slug, categoryId: d.categoryId, price: toPoisha(d.price),
     compareAt: d.compareAt ? toPoisha(d.compareAt) : null,
-    description: d.description, details: d.details || null, tags: d.tags ?? '', isActive: d.isActive, isFeatured: d.isFeatured,
+    description: sanitizeHtml(d.description), details: d.details ? sanitizeHtml(d.details) : null, tags: d.tags ?? '', isActive: d.isActive, isFeatured: d.isFeatured,
   };
 
   let productId = id;

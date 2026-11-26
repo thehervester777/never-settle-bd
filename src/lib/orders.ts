@@ -12,9 +12,17 @@ export class CheckoutError extends Error {
   constructor(message: string, public field?: string) { super(message); }
 }
 
+/** Order links are signed with AUTH_SECRET; without it anyone could make a link to any order. */
+function orderSecret() {
+  const s = process.env.AUTH_SECRET;
+  if (s && s.length >= 32) return s;
+  if (process.env.NODE_ENV === 'production') throw new Error('AUTH_SECRET must be set to a random string of at least 32 characters.');
+  return 'development-only-order-secret';
+}
+
 /** HMAC token so order confirmation links can't be guessed by changing the number. */
 export function orderToken(number: string) {
-  return crypto.createHmac('sha256', process.env.AUTH_SECRET || 'dev').update(`order:${number}`).digest('hex').slice(0, 24);
+  return crypto.createHmac('sha256', orderSecret()).update(`order:${number}`).digest('hex').slice(0, 24);
 }
 export const verifyOrderToken = (number: string, token: string | null | undefined) =>
   !!token && /^[a-f0-9]{24}$/.test(token) && crypto.timingSafeEqual(Buffer.from(orderToken(number)), Buffer.from(token));

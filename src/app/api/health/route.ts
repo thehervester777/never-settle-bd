@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { db, dbUsesSsl, schemaStatus } from '@/db';
+import { adminCount, getSession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,9 +49,20 @@ const driverError = (e: unknown): DbError => {
 
 /**
  * Setup check for the site owner: which settings are present and whether the database works.
- * Reports only yes/no and error codes, never values.
+ * Reports only yes/no and error codes, never values. The details are shown while the store is being set up
+ * (no admin account yet) or to a signed-in admin; anyone else, such as an uptime monitor, gets just ok / not ok.
  */
 export async function GET() {
+  if (process.env.DATABASE_URL && process.env.AUTH_SECRET && process.env.AUTH_SECRET.length >= 32) {
+    let detailed = false;
+    try { detailed = (await adminCount()) === 0 || !!(await getSession()); } catch { detailed = true; }
+    if (!detailed) {
+      let ok = false;
+      try { await db.execute(sql`select 1`); ok = schemaStatus()?.state !== 'failed'; } catch { ok = false; }
+      return NextResponse.json({ ok }, { status: ok ? 200 : 503, headers: { 'Cache-Control': 'no-store' } });
+    }
+  }
+
   const authSecret = process.env.AUTH_SECRET;
   const env = {
     DATABASE_URL: process.env.DATABASE_URL ? 'set' : 'missing',

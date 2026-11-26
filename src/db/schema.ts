@@ -144,6 +144,15 @@ export const admins = mysqlTable('admins', {
   role: varchar('role', { length: 20 }).$type<AdminRole>().notNull().default('OWNER'),
   isActive: boolean('is_active').notNull().default(true),
   lastLoginAt: datetime('last_login_at', { mode: 'date' }),
+  // Wrong passwords in a row; at 5 the account is locked for a while (lockedUntil).
+  failedLogins: int('failed_logins').notNull().default(0),
+  lockedUntil: datetime('locked_until', { mode: 'date' }),
+  // Two-step sign-in: the encrypted authenticator key, when it was turned on (null = off, or still being set up),
+  // the last code's time step (so a code can't be reused) and hashed one-time recovery codes (JSON).
+  totpSecret: varchar('totp_secret', { length: 255 }),
+  totpEnabledAt: datetime('totp_enabled_at', { mode: 'date' }),
+  totpLastStep: int('totp_last_step').notNull().default(0),
+  recoveryCodes: text('recovery_codes'),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex('admins_email_uq').on(t.email)]);
 

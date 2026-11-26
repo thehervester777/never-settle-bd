@@ -30,6 +30,7 @@ export default async function TeamPage() {
         members={admins.sort((a, b) => order(a.role) - order(b.role) || a.id - b.id).map((a) => ({
           id: a.id, name: a.name, email: a.email, role: a.role, isActive: a.isActive, isMe: a.id === me.id,
           lastLogin: a.lastLoginAt ? timeAgo(a.lastLoginAt) : 'Never', joined: fmtDate(a.createdAt),
+          twoStep: !!a.totpEnabledAt, locked: !!a.lockedUntil && a.lockedUntil.getTime() > Date.now(),
         }))}
       />
       <Card title="What each role can do" padded={false}>

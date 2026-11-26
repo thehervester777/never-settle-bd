@@ -38,12 +38,17 @@ function discardBuildTimePages() {
 
 /** The visitor's real IP, set by this server only, so rate limits can't be dodged with a forged header. */
 const hops = Math.max(1, parseInt(process.env.TRUST_PROXY_HOPS || '1', 10) || 1);
+// A proxy (Apache under cPanel, nginx, a load balancer) connects from this machine or a private network.
+const fromProxy = (addr) => /^(::1|127\.|::ffff:127\.|10\.|::ffff:10\.|192\.168\.|::ffff:192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::ffff:172\.(1[6-9]|2\d|3[01])\.|f[cd][0-9a-f]{2}:)/i.test(addr || '');
 function clientIp(req) {
+  const peer = req.socket.remoteAddress || '';
   if (process.env.CLOUDFLARE === 'true' && req.headers['cf-connecting-ip']) return String(req.headers['cf-connecting-ip']).trim();
+  // Forwarded-for headers only count when a proxy sent them: a visitor talking to Node directly could write anything there.
+  if (!fromProxy(peer) && !process.env.TRUST_PROXY_HOPS) return peer;
   const xff = String(req.headers['x-forwarded-for'] || '').split(',').map((s) => s.trim()).filter(Boolean);
   // Proxies append to the right; anything further left was sent by the client and can't be trusted.
   if (xff.length) return xff[Math.max(0, xff.length - hops)];
-  return req.socket.remoteAddress || '';
+  return peer;
 }
 
 function startWorker() {

@@ -8,6 +8,7 @@ import { ADMIN_ROLES, type AdminRole } from '@/db/schema';
 import { hashPassword, requirePermission } from '@/lib/auth';
 import { ROLE_INFO } from '@/lib/permissions';
 import { logActivity } from '@/lib/activity';
+import { passwordProblem } from '@/lib/password-policy';
 
 type Result = { ok: boolean; message: string };
 
@@ -15,7 +16,7 @@ const memberSchema = z.object({
   name: z.string().trim().min(2, 'Enter their name').max(120),
   email: z.string().trim().toLowerCase().email('Enter a valid email').max(160),
   role: z.enum(ADMIN_ROLES),
-  password: z.string().min(10, 'Use a password of at least 10 characters').max(200),
+  password: z.string().max(200),
 });
 
 /** At least one active owner must remain, so nobody can lock the store out of its own panel. */
@@ -29,6 +30,8 @@ export async function createMember(input: unknown): Promise<Result> {
   const parsed = memberSchema.safeParse(input);
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0].message };
   const m = parsed.data;
+  const weak = passwordProblem(m.password, m.email);
+  if (weak) return { ok: false, message: weak };
   const [exists] = await db.select({ id: schema.admins.id }).from(schema.admins).where(eq(schema.admins.email, m.email)).limit(1);
   if (exists) return { ok: false, message: 'Someone with that email already has an account.' };
   const [r] = await db.insert(schema.admins).values({ name: m.name, email: m.email, role: m.role, passwordHash: await hashPassword(m.password) });
@@ -57,11 +60,17 @@ export async function updateMember(id: number, change: { role?: AdminRole; isAct
 
 export async function resetPassword(id: number, password: string): Promise<Result> {
   const admin = await requirePermission('users');
-  if (typeof password !== 'string' || password.length < 10 || password.length > 200) return { ok: false, message: 'Use a password of at least 10 characters.' };
   const [m] = await db.select().from(schema.admins).where(eq(schema.admins.id, id)).limit(1);
   if (!m) return { ok: false, message: 'Account not found.' };
-  // A new hash signs them out everywhere (sessions carry a fingerprint of the old one).
-  await db.update(schema.admins).set({ passwordHash: await hashPassword(password) }).where(eq(schema.admins.id, id));
-  await logActivity(admin, 'team.password', 'admin', id, `Reset ${m.name}’s password`);
-  return { ok: true, message: `Password reset. ${m.name} has been signed out everywhere.` };
+  const weak = passwordProblem(String(password), m.email);
+  if (weak) return { ok: false, message: weak };
+  // A new hash signs them out everywhere (sessions carry a fingerprint of the old one). It also unlocks the
+  // account and turns off two-step sign-in, for someone who lost their phone; they can turn it on again.
+  const hadTwoStep = !!m.totpEnabledAt;
+  await db.update(schema.admins).set({
+    passwordHash: await hashPassword(password), failedLogins: 0, lockedUntil: null,
+    totpSecret: null, totpEnabledAt: null, totpLastStep: 0, recoveryCodes: null,
+  }).where(eq(schema.admins.id, id));
+  await logActivity(admin, 'team.password', 'admin', id, `Reset ${m.name}’s password${hadTwoStep ? ' and two-step sign-in' : ''}`);
+  return { ok: true, message: `Password reset${hadTwoStep ? ' and two-step sign-in turned off' : ''}. ${m.name} has been signed out everywhere.` };
 }

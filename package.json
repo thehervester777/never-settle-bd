@@ -2,7 +2,7 @@
   "name": "never-settle-web",
   "version": "1.0.0",
   "private": true,
-  "description": "NEVER SETTLE \u2014 full-stack fashion store (Next.js, Tailwind CSS, Framer Motion, MySQL, cash on delivery)",
+  "description": "NEVER SETTLE — full-stack fashion store (Next.js, Tailwind CSS, Framer Motion, MySQL, cash on delivery)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -30,6 +30,7 @@
     "mysql2": "^3.24.4",
     "next": "15.5.29",
     "nodemailer": "10.5.0",
+    "qrcode-generator": "2.0.4",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "server-only": "^0.0.1",
