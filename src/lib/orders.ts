@@ -1,5 +1,6 @@
 import 'server-only';
 import crypto from 'crypto';
+import { secretProblem } from '@/lib/secret-check';
 import { and, eq, inArray, lt, sql } from 'drizzle-orm';
 import { db, schema } from '@/db';
 import { getFreshSettings, shippingFor } from './settings';
@@ -15,7 +16,7 @@ export class CheckoutError extends Error {
 /** Order links are signed with AUTH_SECRET; without it anyone could make a link to any order. */
 function orderSecret() {
   const s = process.env.AUTH_SECRET;
-  if (s && s.length >= 32) return s;
+  if (s && !secretProblem(s)) return s;
   if (process.env.NODE_ENV === 'production') throw new Error('AUTH_SECRET must be set to a random string of at least 32 characters.');
   return 'development-only-order-secret';
 }

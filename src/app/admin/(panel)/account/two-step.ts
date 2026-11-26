@@ -48,7 +48,10 @@ async function checkBoth(adminId: number, password: string, code: string) {
   if (!a?.totpEnabledAt || !a.totpSecret) return { a, error: 'Two-step sign-in is already off.' };
   if (!(await checkPassword(String(password), a.passwordHash))) return { a, error: 'Your password is wrong.' };
   const key = openSecret(a.totpSecret, authSecret());
-  const step = key ? verifyTotp(key, String(code), a.totpLastStep) : null;
+  // AUTH_SECRET was changed since it was set up, so the app key can't be read any more: the person signed in
+  // with a recovery code, and their password is enough to turn it off and set it up again.
+  if (!key) return { a, step: 0 };
+  const step = verifyTotp(key, String(code), a.totpLastStep);
   if (step === null) return { a, error: 'That code didn’t match. Type the newest 6-digit code from the app.' };
   return { a, step };
 }

@@ -57,6 +57,11 @@ function startWorker() {
   const app = next({ dev: false, dir: __dirname });
   const handle = app.getRequestHandler();
   app.prepare().then(() => {
+    // .env has been read by now
+    const secret = process.env.AUTH_SECRET || '';
+    if (!secret || secret.length < 32 || /CHANGE_?ME/i.test(secret)) {
+      console.error('WARNING: AUTH_SECRET is missing, too short or still the example value. Admin sign-in and order links will not work. Set your own random 48+ character value in .env and restart.');
+    }
     const server = createServer((req, res) => {
       req.headers['x-ns-client-ip'] = clientIp(req);
       handle(req, res);

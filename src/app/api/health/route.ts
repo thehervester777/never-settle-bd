@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { db, dbUsesSsl, schemaStatus } from '@/db';
 import { adminCount, getSession } from '@/lib/auth';
+import { secretProblem } from '@/lib/secret-check';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,7 +54,7 @@ const driverError = (e: unknown): DbError => {
  * (no admin account yet) or to a signed-in admin; anyone else, such as an uptime monitor, gets just ok / not ok.
  */
 export async function GET() {
-  if (process.env.DATABASE_URL && process.env.AUTH_SECRET && process.env.AUTH_SECRET.length >= 32) {
+  if (process.env.DATABASE_URL && !secretProblem(process.env.AUTH_SECRET)) {
     let detailed = false;
     try { detailed = (await adminCount()) === 0 || !!(await getSession()); } catch { detailed = true; }
     if (!detailed) {
@@ -66,7 +67,7 @@ export async function GET() {
   const authSecret = process.env.AUTH_SECRET;
   const env = {
     DATABASE_URL: process.env.DATABASE_URL ? 'set' : 'missing',
-    AUTH_SECRET: !authSecret ? 'missing' : authSecret.length < 32 ? 'too short (needs 32+ characters)' : 'set',
+    AUTH_SECRET: secretProblem(authSecret) ?? 'set',
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL ? 'set' : 'missing',
     ...(process.env.VERCEL ? { BLOB_READ_WRITE_TOKEN: process.env.BLOB_READ_WRITE_TOKEN ? 'set' : 'missing (photo uploads disabled)' } : {}),
   };

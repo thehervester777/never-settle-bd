@@ -24,7 +24,7 @@ export const dynamic = 'force-dynamic';
  */
 function setupKeyMatches(given: string) {
   const expected = process.env.SETUP_KEY || process.env.AUTH_SECRET || '';
-  if (expected.length < 12) return false;
+  if (expected.length < 12 || /CHANGE_?ME/i.test(expected)) return false;
   const h = (v: string) => crypto.createHash('sha256').update(v.trim()).digest();
   return crypto.timingSafeEqual(h(given), h(expected));
 }

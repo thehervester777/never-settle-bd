@@ -9,13 +9,14 @@ import { eq, sql } from 'drizzle-orm';
 import { db, schema } from '@/db';
 import type { AdminRole } from '@/db/schema';
 import { can, type Permission } from '@/lib/permissions';
+import { secretProblem } from '@/lib/secret-check';
 
 const COOKIE = 'ns_admin';
 const MAX_AGE = 60 * 60 * 12; // 12 hours
 
 export function secret() {
   const s = process.env.AUTH_SECRET;
-  if (!s || s.length < 32) throw new Error('AUTH_SECRET must be set to a random string of at least 32 characters.');
+  if (!s || secretProblem(s)) throw new Error('AUTH_SECRET must be set to your own random string of at least 32 characters.');
   return new TextEncoder().encode(s);
 }
 

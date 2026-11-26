@@ -75,7 +75,7 @@ export function TwoStepCard({ enabled, codesLeft }: { enabled: boolean; codesLef
         <p className="text-sm text-ink/70">{mode === 'off' ? 'To turn off two-step sign-in, enter your password and a code from the app.' : 'To make new recovery codes, enter your password and a code from the app. The old codes stop working.'}</p>
         <div className="grid gap-3 sm:grid-cols-[1fr_160px_auto] sm:items-end">
           <div><label className="alabel" htmlFor="tf-pw">Password</label><input id="tf-pw" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className="ainput" /></div>
-          <div><label className="alabel" htmlFor="tf-code">Code</label><input id="tf-code" required inputMode="numeric" autoComplete="one-time-code" maxLength={7} value={code} onChange={(e) => setCode(e.target.value)} className="ainput text-center font-mono tracking-[0.2em]" /></div>
+          <div><label className="alabel" htmlFor="tf-code">Code</label><input id="tf-code" inputMode="numeric" autoComplete="one-time-code" maxLength={7} value={code} onChange={(e) => setCode(e.target.value)} className="ainput text-center font-mono tracking-[0.2em]" /></div>
           <div className="flex gap-2">
             <button className={`abtn ${mode === 'off' ? 'bg-red-600 text-white hover:bg-red-700' : 'abtn-primary'}`} disabled={pending}>{mode === 'off' ? 'Turn off' : 'Make new codes'}</button>
             <button type="button" className="abtn abtn-ghost" onClick={reset}>Cancel</button>

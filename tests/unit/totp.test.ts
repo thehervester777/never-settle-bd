@@ -37,7 +37,10 @@ test('stored key is encrypted and only opens with the same AUTH_SECRET', () => {
   assert.ok(!sealed.includes(key));
   assert.equal(openSecret(sealed, 'a'.repeat(40)), key);
   assert.equal(openSecret(sealed, 'b'.repeat(40)), null);
-  assert.equal(openSecret(sealed.replace(/.$/, (c) => (c === 'A' ? 'B' : 'A')), 'a'.repeat(40)), null, 'tampered');
+  // Flip one real byte of the encrypted key (not a base64 padding bit)
+  const [v, iv, ct, tag] = sealed.split('.');
+  const bytes = Buffer.from(ct, 'base64url'); bytes[0] ^= 1;
+  assert.equal(openSecret([v, iv, bytes.toString('base64url'), tag].join('.'), 'a'.repeat(40)), null, 'tampered');
 });
 
 test('recovery codes are unique and hash the same with or without the dash', () => {
