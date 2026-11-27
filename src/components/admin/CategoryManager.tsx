@@ -6,12 +6,19 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { deleteCategory, moveCategory, saveCategory } from '@/app/admin/(panel)/categories/actions';
 import { AdminIcon } from './AdminIcon';
 import { MediaField } from './MediaField';
+import { ProductPicker, type PickProduct } from './ProductPicker';
+
+export type { PickProduct };
 import { Modal } from './Modal';
 import { EmptyState } from './ui';
 import { toast } from './toast';
 
 export type CategoryRow = { id: number; name: string; slug: string; description: string; image: string; products: number; live: number };
-type Draft = { id?: number; name: string; slug: string; description: string; image: string; slugTouched?: boolean };
+type Draft = {
+  id?: number; name: string; slug: string; description: string; image: string; slugTouched?: boolean;
+  members: number[]; // products ticked for this category
+  moveTo: Record<number, number>; // products unticked from this category → the category they move to
+};
 
 const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 140);
 
@@ -32,21 +39,27 @@ function TilePreview({ d }: { d: Draft }) {
   );
 }
 
-export function CategoryManager({ categories }: { categories: CategoryRow[] }) {
+export function CategoryManager({ categories, products }: { categories: CategoryRow[]; products: PickProduct[] }) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [error, setError] = useState<{ field?: string; message: string } | null>(null);
   const [pending, start] = useTransition();
   const router = useRouter();
   const set = (patch: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...patch } : d));
   const act = (fn: () => Promise<{ ok: boolean; message: string }>) => start(async () => { const r = await fn(); toast(r.message, r.ok ? 'ok' : 'warn'); router.refresh(); });
-  const open = (d: Draft) => { setDraft(d); setError(null); };
+  const open = (d: Omit<Draft, 'members' | 'moveTo'>, focusProducts = false) => {
+    setDraft({ ...d, members: d.id ? products.filter((p) => p.categoryId === d.id).map((p) => p.id) : [], moveTo: {} });
+    setError(null);
+    if (focusProducts) setTimeout(() => document.querySelector('[data-product-picker]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 350);
+  };
   const original = draft?.id ? categories.find((c) => c.id === draft.id) : undefined;
 
   const save = () => {
     if (!draft) return;
-    const { id, name, slug, description, image } = draft;
+    const { id, name, slug, description, image, members, moveTo } = draft;
+    const add = members.filter((pid) => products.find((p) => p.id === pid)?.categoryId !== id);
+    const moveOut = Object.entries(moveTo).map(([pid, to]) => ({ id: Number(pid), to }));
     start(async () => {
-      const r = await saveCategory({ id, name, slug, description, image });
+      const r = await saveCategory({ id, name, slug, description, image, products: { add, moveOut } });
       if (!r.ok) { setError({ field: r.field, message: r.message }); return; }
       toast(r.message);
       setDraft(null);
@@ -86,7 +99,8 @@ export function CategoryManager({ categories }: { categories: CategoryRow[] }) {
                 <div className="mt-auto flex items-center gap-1 pt-2">
                   <button type="button" disabled={pending || i === 0} onClick={() => act(() => moveCategory(c.id, -1))} className="rounded-lg p-1.5 text-ink/50 hover:bg-black/[0.05] hover:text-ink disabled:opacity-25" aria-label={`Move ${c.name} up`}><AdminIcon name="arrow-up" className="h-4 w-4" /></button>
                   <button type="button" disabled={pending || i === categories.length - 1} onClick={() => act(() => moveCategory(c.id, 1))} className="rounded-lg p-1.5 text-ink/50 hover:bg-black/[0.05] hover:text-ink disabled:opacity-25" aria-label={`Move ${c.name} down`}><AdminIcon name="arrow-down" className="h-4 w-4" /></button>
-                  <button type="button" onClick={() => open({ ...c, slugTouched: true })} className="abtn abtn-outline abtn-sm ml-auto">Edit</button>
+                  <button type="button" onClick={() => open({ ...c, slugTouched: true }, true)} className="abtn abtn-ghost abtn-sm ml-auto">Products</button>
+                  <button type="button" onClick={() => open({ ...c, slugTouched: true })} className="abtn abtn-outline abtn-sm">Edit</button>
                   <button type="button" disabled={pending}
                     onClick={() => (c.products ? toast(`Move the ${c.products} product${c.products === 1 ? '' : 's'} in “${c.name}” to another category first.`, 'warn') : confirm(`Delete the “${c.name}” category?`) && act(() => deleteCategory(c.id)))}
                     className="rounded-lg p-1.5 text-ink/35 hover:bg-red-50 hover:text-red-600" aria-label={`Delete ${c.name}`}><AdminIcon name="trash" className="h-4 w-4" /></button>
@@ -98,7 +112,7 @@ export function CategoryManager({ categories }: { categories: CategoryRow[] }) {
       </ul>
       {!categories.length && <div className="admin-card mt-4"><EmptyState icon="products" title="No categories yet">Add a category, then put products in it.</EmptyState></div>}
 
-      <Modal open={!!draft} onClose={() => setDraft(null)} title={draft?.id ? 'Edit category' : 'New category'} description="Changes go live in the store when you save." width="max-w-4xl">
+      <Modal open={!!draft} onClose={() => setDraft(null)} title={draft?.id ? 'Edit category' : 'New category'} description="Changes go live in the store when you save." width="max-w-5xl">
         {draft && (
           <form className="grid gap-6 md:grid-cols-[minmax(0,1fr)_260px]" onSubmit={(e) => { e.preventDefault(); save(); }}>
             <div className="space-y-4">
@@ -133,6 +147,14 @@ export function CategoryManager({ categories }: { categories: CategoryRow[] }) {
             <div className="space-y-3">
               <p className="alabel">Preview</p>
               <TilePreview d={draft} />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="alabel mb-0">Products in this category</p>
+                <p className="text-xs text-ink/45">Tick to add. Unticking one moves it to the category you choose.</p>
+              </div>
+              <ProductPicker products={products} categories={categories} categoryId={draft.id} members={draft.members} moveTo={draft.moveTo}
+                onChange={(members, moveTo) => set({ members, moveTo })} />
             </div>
             <div className="flex justify-end gap-2 md:col-span-2">
               <button type="button" onClick={() => setDraft(null)} className="abtn abtn-ghost">Cancel</button>

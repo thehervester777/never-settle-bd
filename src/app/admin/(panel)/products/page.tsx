@@ -46,7 +46,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Products" description={`${rows.length} product${rows.length === 1 ? '' : 's'}`} actions={<Link href="/admin/products/new" className="abtn abtn-primary"><AdminIcon name="plus" className="h-4 w-4" /> Add product</Link>} />
+      <PageHeader title="Products" description={`${rows.length} product${rows.length === 1 ? '' : 's'}`} actions={<><Link href="/admin/categories" className="abtn abtn-outline"><AdminIcon name="categories" className="h-4 w-4" /> Categories</Link><Link href="/admin/products/new" className="abtn abtn-primary"><AdminIcon name="plus" className="h-4 w-4" /> Add product</Link></>} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <Segmented current={sp.show ?? 'all'} items={[['all', 'All'], ['visible', 'Visible'], ['hidden', 'Hidden']].map(([k, l]) => ({ key: k, label: l, href: `/admin/products${qs({ show: k === 'all' ? undefined : k })}` }))} />
         <form className="flex flex-wrap gap-2">

@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react';
 import { saveProduct, uploadImage, deleteProduct } from '@/app/admin/(panel)/products/actions';
+import { quickAddCategory } from '@/app/admin/(panel)/categories/actions';
+import Link from 'next/link';
 import { AdminIcon } from './AdminIcon';
 
 type Variant = { id?: number; color: string; size: string; sku: string; stock: number; cost: string };
@@ -11,8 +13,21 @@ type Initial = {
   description: string; details: string; tags: string; isActive: boolean; isFeatured: boolean; variants: Variant[]; images: Img[];
 };
 
-export function ProductEditor({ initial, categories, canCost }: { initial: Initial; categories: { id: number; name: string }[]; canCost: boolean }) {
+export function ProductEditor({ initial, categories: initialCategories, canCost }: { initial: Initial; categories: { id: number; name: string }[]; canCost: boolean }) {
   const [p, setP] = useState(initial);
+  const [categories, setCategories] = useState(initialCategories);
+  const [newCat, setNewCat] = useState<string | null>(null); // null = the add box is closed
+  const [catError, setCatError] = useState('');
+  const [addingCat, startCat] = useTransition();
+  const addCategory = () => startCat(async () => {
+    setCatError('');
+    const r = await quickAddCategory(newCat ?? '');
+    if (!r.ok || !r.category) { setCatError(r.message); return; }
+    const c = r.category;
+    setCategories((list) => [...list, c]);
+    set('categoryId', c.id);
+    setNewCat(null);
+  });
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
   const [pending, start] = useTransition();
@@ -133,11 +148,28 @@ export function ProductEditor({ initial, categories, canCost }: { initial: Initi
           <label className="flex items-center justify-between gap-2 rounded-xl bg-[#f7f7f4] px-3 py-2.5 text-sm"><span>Visible in store</span><input type="checkbox" className="acheck" checked={p.isActive} onChange={(e) => set('isActive', e.target.checked)} /></label>
           <label className="flex items-center justify-between gap-2 rounded-xl bg-[#f7f7f4] px-3 py-2.5 text-sm"><span>Show in Best sellers</span><input type="checkbox" className="acheck" checked={p.isFeatured} onChange={(e) => set('isFeatured', e.target.checked)} /></label>
           <div>
-            <label className="alabel" htmlFor="cat">Category</label>
+            <div className="flex items-center justify-between">
+              <label className="alabel" htmlFor="cat">Category</label>
+              <Link href="/admin/categories" className="mb-1.5 text-xs text-ink/50 underline-offset-2 hover:text-ink hover:underline">Manage categories</Link>
+            </div>
             <select id="cat" className="aselect" value={p.categoryId} onChange={(e) => set('categoryId', Number(e.target.value))} required>
               <option value="">Choose…</option>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
+            {newCat === null ? (
+              <button type="button" onClick={() => { setNewCat(''); setCatError(''); }} className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-ink/70 hover:text-ink"><AdminIcon name="plus" className="h-3.5 w-3.5" /> New category</button>
+            ) : (
+              <div className="mt-2 space-y-1.5">
+                <div className="flex gap-2">
+                  <input id="new-cat" autoFocus maxLength={120} value={newCat} onChange={(e) => setNewCat(e.target.value)} placeholder="e.g. Panjabi sets" className="ainput min-w-0 flex-1"
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCategory(); } if (e.key === 'Escape') setNewCat(null); }} />
+                  <button type="button" onClick={addCategory} disabled={addingCat || !newCat.trim()} className="abtn abtn-primary abtn-sm">{addingCat ? 'Adding…' : 'Add'}</button>
+                  <button type="button" onClick={() => setNewCat(null)} className="abtn abtn-ghost abtn-sm" aria-label="Cancel"><AdminIcon name="close" className="h-4 w-4" /></button>
+                </div>
+                {catError && <p className="text-xs text-red-600" role="alert">{catError}</p>}
+                <p className="ahint">Add its picture later in Categories.</p>
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><label className="alabel" htmlFor="price">Price (৳)</label><input id="price" type="number" min={1} step="1" className="ainput" value={p.price} onChange={(e) => set('price', e.target.value)} required /></div>
