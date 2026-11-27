@@ -53,8 +53,14 @@ function clientIp(req) {
 
 function startWorker() {
   process.env.NS_CUSTOM_SERVER = '1'; // tells the app that x-ns-client-ip comes from this file, not from a visitor
+  // After a form redirects (sign-in, order tracking), Next.js fetches the next page from this server itself.
+  // Without being told the port it assumes localhost:3000, which on a shared host can be someone else's app.
+  // Under Passenger (cPanel) the real port isn't known, so it gets an address that refuses at once and Next.js
+  // falls back to a normal redirect.
+  const numericPort = /^\d+$/.test(String(port)) ? Number(port) : undefined;
+  process.env.__NEXT_PRIVATE_ORIGIN = !underPassenger && numericPort ? `http://127.0.0.1:${numericPort}` : 'http://127.0.0.1:1';
   const next = require('next');
-  const app = next({ dev: false, dir: __dirname });
+  const app = next({ dev: false, dir: __dirname, hostname: '127.0.0.1', port: numericPort });
   const handle = app.getRequestHandler();
   app.prepare().then(() => {
     // .env has been read by now
